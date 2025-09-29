@@ -207,6 +207,9 @@ def transform_plan_args(plan, fn):
 def obj_from_pddl_plan(pddl_plan):
     return transform_plan_args(pddl_plan, obj_from_pddl)
 
+def pddl_from_obj_plan(plan):
+    return transform_plan_args(plan, pddl_from_object)
+
 def param_from_object(obj):
     if isinstance(obj, OptimisticObject):
         return repr(obj)
@@ -243,6 +246,11 @@ def revert_solution(plan, cost, evaluations):
 #    return OptimisticObject.from_opt(value)
 #    # TODO: better way of doing this?
 #    #return OptimisticObject._obj_from_inputs.get(value, Object.from_value(value))
+
+def obj_from_value_str(value_str):
+    if Object.has_value_str(value_str):
+        return Object.from_value_str(value_str)
+    return value_str
 
 def str_from_head(head):
     return '{}{}'.format(get_prefix(head), str_from_object(get_args(head)))

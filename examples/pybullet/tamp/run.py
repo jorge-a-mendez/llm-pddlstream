@@ -2,11 +2,15 @@
 
 from __future__ import print_function
 
+import os
+import dill as pickle
+
+
 from examples.pybullet.tamp.streams import get_cfree_approach_pose_test, get_cfree_pose_pose_test, get_cfree_traj_pose_test, \
     get_cfree_traj_grasp_pose_test, BASE_CONSTANT, distance_fn, move_cost_fn
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
-    get_stable_gen, get_grasp_gen, control_commands
+    get_stable_gen, get_grasp_gen, get_grasp_list, control_commands
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, \
     get_group_conf
 from examples.pybullet.utils.pybullet_tools.utils import connect, get_pose, is_placement, disconnect, \
@@ -28,6 +32,9 @@ from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, World
 
 from examples.pybullet.tamp.problems import PROBLEMS
 
+import numpy as np
+import random
+
 # TODO: collapse similar streams into a single stream when reodering
 
 def get_bodies_from_type(problem):
@@ -36,7 +43,7 @@ def get_bodies_from_type(problem):
         bodies_from_type.setdefault(ty, set()).add(body)
     return bodies_from_type
 
-def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport=False):
+def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport=False, algorithm=None, pose_sampler_llm=False, thinking_llm=False, llm_info=None):
     robot = problem.robot
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -102,12 +109,15 @@ def pddlstream_from_problem(problem, base_limits=None, collisions=True, teleport
     if base_limits is not None:
         custom_limits.update(get_custom_limits(robot, problem.base_limits))
 
+    grasp_sampler = from_gen_fn(get_grasp_gen(problem, collisions=collisions)) if algorithm == 'sesame' else \
+        from_list_fn(get_grasp_list(problem, collisions=collisions)) 
+    max_ir_attempts = 25 if algorithm == 'sesame' else 1
     stream_map = {
-        'sample-pose': from_gen_fn(get_stable_gen(problem, collisions=collisions)),
-        'sample-grasp': from_list_fn(get_grasp_gen(problem, collisions=collisions)),
-        #'sample-grasp': from_gen_fn(get_grasp_gen(problem, collisions=collisions)),
+        'sample-pose': from_gen_fn(get_stable_gen(problem, collisions=collisions, llm_sampler=pose_sampler_llm, thinking_llm=thinking_llm, llm_info=llm_info)),
+        'sample-grasp': grasp_sampler,
         'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, custom_limits=custom_limits,
-                                                        collisions=collisions, teleport=teleport)),
+                                                        collisions=collisions, teleport=teleport,
+                                                        max_ir_attempts=max_ir_attempts)),
         'plan-base-motion': from_fn(get_motion_gen(problem, custom_limits=custom_limits,
                                                    collisions=collisions, teleport=teleport)),
 
@@ -140,6 +150,13 @@ def main(verbose=True):
     parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
+    parser.add_argument('-pddl_llm', action='store_true', help='Uses a PDDL LLM for planning')
+    parser.add_argument('-thinking_llm', action='store_true', help='Uses a thinking LLM for planning')
+    parser.add_argument('-pose_sampler_llm', action='store_true', help='Uses a pose sampler LLM for planning')
+    parser.add_argument('-integrated_llm', action='store_true', help='Uses an LLM for integrated planning')
+    parser.add_argument('-r', '--results_dir', default='results', help='The directory to save results')
+    parser.add_argument('-gui', action='store_true', help='Enables the GUI')
+    parser.add_argument('-seed', default=0, type=int, help='The random seed')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -148,18 +165,55 @@ def main(verbose=True):
         raise ValueError(args.problem)
     problem_fn = problem_fn_from_name[args.problem]
 
-    connect(use_gui=True)
+    connect(use_gui=args.gui)
     with HideOutput():
         problem = problem_fn(num=args.number)
     draw_base_limits(problem.base_limits, color=(1, 0, 0))
     saver = WorldSaver()
+    if args.gui:
+        wait_for_user()
+
 
     #handles = []
     #for link in get_group_joints(problem.robot, 'left_arm'):
     #    handles.append(draw_link_name(problem.robot, link))
     #wait_for_user()
+    llm_info = {
+        'integrated_time': 0.0,
+        'pddl_time': 0.0,
+        'sampling_time': 0.0,
+        'integrated_input_tokens': 0,
+        'integrated_thinking_tokens': 0,
+        'integrated_output_tokens': 0,
+        'pddl_input_tokens': 0,
+        'pddl_thinking_tokens': 0,
+        'pddl_output_tokens': 0,
+        'sampling_input_tokens': 0,
+        'sampling_thinking_tokens': 0,
+        'sampling_output_tokens': 0,
+        'pddl_failures': 0,
+        'num_invalid_actions': 0,
+        'num_preimages_not_achieved': 0,
+        'num_axioms_not_achieved': 0,
+        'local_sampling_failures': 0,
+        'num_samples_in_collision': 0,
+        'num_samples_not_stable': 0,
+        'num_no_plans_returned': 0,
+        'num_no_samples_returned': 0,
+        'num_samples_format_failures': 0,
+        'num_samples_not_optimistic': 0,
+        'num_samples_used': 0,
+        'num_backtracking_failures': 0,
+        'chat_histories': {},   # I'll attach an ID to each chat to make sure I update or create a new one as needed
+        'chat_types': {},
+        'seed': args.seed,
+    }
 
-    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=args.teleport)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
+
+    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=args.teleport, algorithm=args.algorithm, 
+                                                 pose_sampler_llm=args.pose_sampler_llm, thinking_llm=args.thinking_llm, llm_info=llm_info)
     stream_info = {
         'inverse-kinematics': StreamInfo(),
         'plan-base-motion': StreamInfo(overhead=1e1),
@@ -185,15 +239,17 @@ def main(verbose=True):
     max_planner_time = 10
     # effort_weight = 0 if args.optimal else 1
     effort_weight = 1e-3 if args.optimal else 1
-
     with Profiler(field='tottime', num=25): # cumtime | tottime
         with LockRenderer(lock=not args.enable):
-            solution = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
+            store = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
                              planner=planner, max_planner_time=max_planner_time,
                              unit_costs=args.unit, success_cost=success_cost,
-                             max_time=args.max_time, verbose=True, debug=False,
+                             max_time=args.max_time, verbose=True, debug=True,
                              unit_efforts=True, effort_weight=effort_weight,
-                             search_sample_ratio=search_sample_ratio)
+                             search_sample_ratio=search_sample_ratio, pddl_llm=args.pddl_llm,
+                             thinking_llm=args.thinking_llm, integrated_llm=args.integrated_llm,
+                             pybullet_obstacles=problem.fixed, llm_info=llm_info)
+            solution = store.extract_solution()
             saver.restore()
 
 
@@ -203,6 +259,27 @@ def main(verbose=True):
     #print(SOLUTIONS)
     print_solution(solution)
     plan, cost, evaluations = solution
+
+    # Save store and llm_info in results directory
+    results_dir = args.results_dir
+    store_to_save = {
+        'summary': store.export_summary(),
+        'cost_over_time': cost_over_time,
+        'best_plan': plan,
+        'best_cost': cost,
+        'all_plans': [(s.plan, s.cost, s.time) for s in SOLUTIONS],
+    }
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+    store_path = os.path.join(results_dir, 'store.pkl')
+    with open(store_path, 'wb') as f:
+        pickle.dump(store_to_save, f)
+    llm_info_path = os.path.join(results_dir, 'llm_info.pkl')
+    with open(llm_info_path, 'wb') as f:
+        pickle.dump(llm_info, f)
+    print('Store saved to:', store_path)
+    print('LLM info saved to:', llm_info_path)
+
     if (plan is None) or not has_gui():
         disconnect()
         return

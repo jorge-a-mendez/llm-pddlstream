@@ -74,6 +74,7 @@ def extract_axioms(state, axiom_from_atom, conditions, axiom_plan, negated_from_
         if fact not in axiom_from_atom:
             print('Fact is not achievable:', fact)
             success = False
+            raise RuntimeError('Fact is not achievable: {}'.format(fact))
             continue
         axiom = axiom_from_atom[fact]
         if (axiom is None) or (axiom in axiom_plan):

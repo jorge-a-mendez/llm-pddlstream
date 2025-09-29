@@ -26,6 +26,7 @@ def is_refined(stream_plan):
     if not is_plan(stream_plan):
         return True
     # TODO: some of these opt_index equal None
+    print([(result.opt_index, result.is_refined() if result.opt_index is not None else None) for result in stream_plan])
     return all((result.opt_index is None) or result.is_refined()
                for result in stream_plan)
 
@@ -59,7 +60,8 @@ def optimistic_process_streams(evaluations, streams, complexity_limit=INF, **eff
             instantiator.add_atom(evaluation, node.complexity)
     results = []
     while instantiator and (instantiator.min_complexity() <= complexity_limit):
-        results.extend(optimistic_process_instance(instantiator, instantiator.pop_stream()))
+        popped = instantiator.pop_stream()
+        results.extend(optimistic_process_instance(instantiator, popped))
         # TODO: instantiate and solve to avoid repeated work
     exhausted = not instantiator
     return results, exhausted
@@ -157,9 +159,11 @@ def get_optimistic_solve_fn(goal_exp, domain, negative, max_cost=INF, **kwargs):
 def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_fn, complexity_limit,
                               depth, constraints, **effort_args):
     if MAX_DEPTH <= depth:
+        print("Returning because max depth reached", MAX_DEPTH, depth)
         return OptSolution(None, None, INF), depth
     stream_plan, opt_plan, cost = optimistic_solve_fn(evaluations, results, constraints)
     if not is_plan(opt_plan) or is_refined(stream_plan):
+        print("Returning because not a plan or already refined", is_plan(opt_plan), is_refined(stream_plan))
         return OptSolution(stream_plan, opt_plan, cost), depth
     #action_plan, preimage_facts = opt_plan
     #dump_plans(stream_plan, action_plan, cost)
@@ -179,6 +183,7 @@ def hierarchical_plan_streams(evaluations, externals, results, optimistic_solve_
     new_depth = depth + 1
     new_results, bindings = optimistic_stream_evaluation(evaluations, stream_plan)
     if not (CONSTRAIN_STREAMS or CONSTRAIN_PLANS):
+        print("Returning because no constraints", CONSTRAIN_STREAMS, CONSTRAIN_PLANS)
         return OptSolution(FAILED, FAILED, INF), new_depth
     #if CONSTRAIN_STREAMS:
     #    next_results = compute_stream_results(evaluations, new_results, externals, complexity_limit, **effort_args)
@@ -198,6 +203,12 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
     while True:
         num_iterations += 1
         results, exhausted = optimistic_process_streams(complexity_evals, externals, complexity_limit, **effort_args)
+        # print("Externals:")
+        # for ext in externals:
+        #     print("\t", ext, type(ext))
+        # print("Results:")
+        # for res in results:
+        #     print("\t", res, type(res))
         opt_solution, final_depth = hierarchical_plan_streams(
             complexity_evals, externals, results, optimistic_solve_fn, complexity_limit,
             depth=0, constraints=None, **effort_args)
@@ -205,6 +216,9 @@ def iterative_plan_streams(all_evaluations, externals, optimistic_solve_fn, comp
         print('Attempt: {} | Results: {} | Depth: {} | Success: {} | Time: {:.3f}'.format(
             num_iterations, len(results), final_depth, is_plan(action_plan), elapsed_time(start_time)))
         if is_plan(action_plan):
+            for e in complexity_evals:
+                if e not in all_evaluations:
+                    all_evaluations[e] = complexity_evals[e]
             return OptSolution(stream_plan, action_plan, cost)
         if final_depth == 0:
             status = INFEASIBLE if exhausted else FAILED

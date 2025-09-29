@@ -23,6 +23,7 @@ from pddlstream.utils import elapsed_time, INF, Verbose, irange, SEPARATOR
 
 FOCUSED_ALGORITHMS = ['focused', 'binding', 'adaptive']
 ALGORITHMS = ['incremental'] + FOCUSED_ALGORITHMS
+ALGORITHMS = ['sesame'] + ALGORITHMS
 DEFAULT_ALGORITHM = 'adaptive'
 
 ##################################################
@@ -146,6 +147,18 @@ def solve(problem, algorithm=DEFAULT_ALGORITHM, constraints=PlanConstraints(),
             #bind=bind, max_failures=max_failures,
             unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
             visualize=visualize, verbose=verbose, **search_kwargs)
+    if algorithm == 'sesame':
+        return solve_binding(
+            problem, constraints=constraints,
+            stream_info=stream_info, replan_actions=replan_actions,
+            unit_costs=unit_costs, success_cost=success_cost,
+            max_time=max_time, max_iterations=max_iterations, max_memory=max_memory,
+            initial_complexity=INF, complexity_step=0, max_complexity=float("inf"),
+            #max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio,
+            fail_fast=fail_fast, # bind=bind, 
+            max_failures=10,
+            unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
+            visualize=visualize, verbose=verbose, backtracking_search=True, **search_kwargs)
     raise NotImplementedError(algorithm)
 
 ##################################################

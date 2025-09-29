@@ -2,7 +2,12 @@
 
 from __future__ import print_function
 
+import os
+import dill as pickle
+
+
 from pddlstream.algorithms.meta import solve, create_parser
+from pddlstream.algorithms.common import SOLUTIONS
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Conf, control_commands, Attach, Detach
 from examples.pybullet.utils.pybullet_tools.utils import connect, disconnect, \
     HideOutput, LockRenderer, wait_for_user
@@ -15,15 +20,19 @@ from examples.pybullet.pr2_belief.problems import BeliefState
 from examples.pybullet.pr2_belief.primitives import Register, Scan
 
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import apply_commands
-from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, get_bodies, RED, has_gui, remove_body
+from examples.pybullet.utils.pybullet_tools.utils import draw_base_limits, WorldSaver, get_bodies, RED, has_gui, remove_body, \
+    str_from_object
 from examples.pybullet.namo.stream import get_custom_limits as get_base_custom_limits
 
 from examples.pybullet.turtlebot_rovers.problems import PROBLEMS, get_base_joints, KINECT_FRAME
 from examples.pybullet.turtlebot_rovers.streams import get_reachable_test, get_inv_vis_gen, get_inv_com_gen, \
     get_above_gen, get_motion_fn, get_cfree_ray_test, VIS_RANGE
 
+import numpy as np
+import random
+
 CLASSES = [
-    'blue', 'red', 'rock', 'soil',
+    'blue', 'red', 'stone', 'soil',
 ]
 
 BASE_LINK = 'base_link'
@@ -35,7 +44,7 @@ BASE_LINK = 'base_link'
 
 #######################################################
 
-def pddlstream_from_problem(problem, collisions=True, **kwargs):
+def pddlstream_from_problem(problem, collisions=True, pose_sampler_llm=False, thinking_llm=False, llm_info=None, **kwargs):
     # TODO: push and attach to movable objects
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -47,11 +56,8 @@ def pddlstream_from_problem(problem, collisions=True, **kwargs):
 
     init = []
     goal_literals = [
-        #('Calibrated', camera, problem.rovers[0])
-        #('Analyzed', problem.rovers[0], problem.rocks[0])
-        #('ReceivedAnalysis', problem.rocks[0])
-        Exists(['?rock'], And(('Type', '?rock', 'stone'),
-                              ('ReceivedAnalysis', '?rock'))),
+        Exists(['?stone'], And(('Type', '?stone', 'stone'),
+                              ('ReceivedAnalysis', '?stone'))),
         Exists(['?soil'], And(('Type', '?soil', 'soil'),
                               ('ReceivedAnalysis', '?soil'))),
     ]
@@ -80,15 +86,20 @@ def pddlstream_from_problem(problem, collisions=True, **kwargs):
     if problem.limits is not None:
         for rover in problem.rovers:
             custom_limits.update(get_base_custom_limits(rover, problem.limits))
-
     stream_map = {
         'test-cfree-ray-conf': from_test(get_cfree_ray_test(problem, collisions=collisions)),
         'test-reachable': from_test(get_reachable_test(problem, custom_limits=custom_limits,
                                                        collisions=collisions,  **kwargs)),
         'obj-inv-visible': from_gen_fn(get_inv_vis_gen(problem, custom_limits=custom_limits,
-                                                       collisions=collisions,  **kwargs)),
+                                                       collisions=collisions,max_attempts=3,
+                                                       llm_sampler=pose_sampler_llm,
+                                                       thinking_llm=thinking_llm,
+                                                       llm_info=llm_info,  **kwargs)),
         'com-inv-visible': from_gen_fn(get_inv_com_gen(problem, custom_limits=custom_limits,
-                                                       collisions=collisions, **kwargs)),
+                                                       collisions=collisions,
+                                                       llm_sampler=pose_sampler_llm,
+                                                       thinking_llm=thinking_llm,
+                                                       llm_info=llm_info, **kwargs)),
         'sample-above': from_gen_fn(get_above_gen(problem, custom_limits=custom_limits,
                                                   collisions=collisions, **kwargs)),
         'sample-motion': from_fn(get_motion_fn(problem, custom_limits=custom_limits,
@@ -100,7 +111,7 @@ def pddlstream_from_problem(problem, collisions=True, **kwargs):
 
 #######################################################
 
-def post_process(problem, plan):
+def post_process(problem, plan, teleport=None):
     if plan is None:
         return None
     commands = []
@@ -140,6 +151,7 @@ def post_process(problem, plan):
 def main():
     parser = create_parser()
     parser.add_argument('-problem', default='rovers1', help='The name of the problem to solve')
+    parser.add_argument('-n', '--number', default=4, type=int, help='The number of objectives')
     parser.add_argument('-cfree', action='store_true', help='Disables collisions')
     parser.add_argument('-deterministic', action='store_true', help='Uses a deterministic sampler')
     parser.add_argument('-optimal', action='store_true', help='Runs in an anytime mode')
@@ -147,6 +159,13 @@ def main():
     parser.add_argument('-enable', action='store_true', help='Enables rendering during planning')
     parser.add_argument('-teleport', action='store_true', help='Teleports between configurations')
     parser.add_argument('-simulate', action='store_true', help='Simulates the system')
+    parser.add_argument('-pddl_llm', action='store_true', help='Uses a PDDL LLM for planning')
+    parser.add_argument('-thinking_llm', action='store_true', help='Uses a thinking LLM for planning')
+    parser.add_argument('-pose_sampler_llm', action='store_true', help='Uses a pose sampler LLM for planning')
+    parser.add_argument('-integrated_llm', action='store_true', help='Uses an LLM for integrated planning')
+    parser.add_argument('-r', '--results_dir', default='results', help='The directory to save results')
+    parser.add_argument('-gui', action='store_true', help='Enables the GUI')
+    parser.add_argument('-seed', default=0, type=int, help='The random seed')
     args = parser.parse_args()
     print('Arguments:', args)
 
@@ -154,14 +173,54 @@ def main():
     if args.problem not in problem_fn_from_name:
         raise ValueError(args.problem)
     problem_fn = problem_fn_from_name[args.problem]
-    connect(use_gui=True)
+    connect(use_gui=args.gui)
     with HideOutput():
-        rovers_problem = problem_fn()
+        rovers_problem = problem_fn(n_objectives=args.number)
     saver = WorldSaver()
     draw_base_limits(rovers_problem.limits, color=RED)
+    if args.gui:
+        wait_for_user()
+
+    llm_info = {
+        'integrated_time': 0.0,
+        'pddl_time': 0.0,
+        'sampling_time': 0.0,
+        'integrated_input_tokens': 0,
+        'integrated_thinking_tokens': 0,
+        'integrated_output_tokens': 0,
+        'pddl_input_tokens': 0,
+        'pddl_thinking_tokens': 0,
+        'pddl_output_tokens': 0,
+        'sampling_input_tokens': 0,
+        'sampling_thinking_tokens': 0,
+        'sampling_output_tokens': 0,
+        'pddl_failures': 0,
+        'num_invalid_actions': 0,
+        'num_preimages_not_achieved': 0,
+        'num_axioms_not_achieved': 0,
+        'local_sampling_failures': 0,
+        'num_samples_in_collision': 0,
+        'num_samples_not_stable': 0,
+        'num_no_plans_returned': 0,
+        'num_no_samples_returned': 0,
+        'num_samples_format_failures': 0,
+        'num_samples_out_of_bounds': 0,
+        'num_samples_not_visible': 0,
+        'num_samples_out_of_range': 0,
+        'num_samples_not_reachable': 0,
+        'num_samples_not_optimistic': 0,
+        'num_samples_used': 0,
+        'num_backtracking_failures': 0,
+        'chat_histories': {},   # I'll attach an ID to each chat to make sure I update or create a new one as needed
+        'chat_types': {},
+        'seed': args.seed
+    }
+    np.random.seed(args.seed)
+    random.seed(args.seed)
 
     pddlstream_problem = pddlstream_from_problem(rovers_problem, collisions=not args.cfree, teleport=args.teleport,
-                                                 holonomic=False, reversible=True, use_aabb=True)
+                                                 algorithms=args.algorithm, holonomic=False, reversible=True, use_aabb=True,
+                                                 pose_sampler_llm=args.pose_sampler_llm, thinking_llm=args.thinking_llm, llm_info=llm_info)
     stream_info = {
         'test-cfree-ray-conf': StreamInfo(),
         'test-reachable': StreamInfo(p_success=1e-1),
@@ -173,30 +232,61 @@ def main():
     _, _, _, stream_map, init, goal = pddlstream_problem
     print('Init:', init)
     print('Goal:', goal)
+    print('Streams:', str_from_object(set(stream_map)))
     #print('Streams:', stream_map.keys())
 
     success_cost = 0 if args.optimal else INF
-    planner = 'ff-wastar3'
+    planner = 'ff-astar' if args.optimal else 'ff-wastar3'
     search_sample_ratio = 2
     max_planner_time = 10
 
     # TODO: need to accelerate samples here because of the failed test reachable
+    effort_weight = 1e-3 if args.optimal else 1
     with Profiler(field='tottime', num=25):
         with LockRenderer(lock=not args.enable):
             # TODO: option to only consider costs during local optimization
-            solution = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
-                             planner=planner, max_planner_time=max_planner_time, debug=False,
+            store = solve(pddlstream_problem, algorithm=args.algorithm, stream_info=stream_info,
+                             planner=planner, max_planner_time=max_planner_time, 
                              unit_costs=args.unit, success_cost=success_cost,
-                             max_time=args.max_time, verbose=True,
-                             unit_efforts=True, effort_weight=1,
-                             search_sample_ratio=search_sample_ratio)
+                             max_time=args.max_time, verbose=True, debug=True,
+                             unit_efforts=True, effort_weight=effort_weight,
+                             search_sample_ratio=search_sample_ratio, pddl_llm=args.pddl_llm,
+                             thinking_llm=args.thinking_llm, integrated_llm=args.integrated_llm,
+                             pybullet_obstacles=rovers_problem.fixed, 
+                             pybullet_rovers=rovers_problem.rovers, llm_info=llm_info)
+            solution = store.extract_solution()
             for body in get_bodies():
                 if body not in saver.bodies:
                     remove_body(body)
             saver.restore()
 
+    cost_over_time = [(s.cost, s.time) for s in SOLUTIONS]
+    for i, (cost, runtime) in enumerate(cost_over_time):
+        print('Plan: {} | Cost: {:.3f} | Time: {:.3f}'.format(i, cost, runtime))
+    #print(SOLUTIONS)
     print_solution(solution)
     plan, cost, evaluations = solution
+
+    # Save store and llm_info in results directory
+    results_dir = args.results_dir
+    store_to_save = {
+        'summary': store.export_summary(),
+        'cost_over_time': cost_over_time,
+        'best_plan': plan,
+        'best_cost': cost,
+        'all_plans': [(s.plan, s.cost, s.time) for s in SOLUTIONS],
+    }
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+    store_path = os.path.join(results_dir, 'store.pkl')
+    with open(store_path, 'wb') as f:
+        pickle.dump(store_to_save, f)
+    llm_info_path = os.path.join(results_dir, 'llm_info.pkl')
+    with open(llm_info_path, 'wb') as f:
+        pickle.dump(llm_info, f)
+    print('Store saved to:', store_path)
+    print('LLM info saved to:', llm_info_path)
+
     if (plan is None) or not has_gui():
         disconnect()
         return
@@ -204,9 +294,10 @@ def main():
     # Maybe OpenRAVE didn't actually sample any joints...
     # http://openrave.org/docs/0.8.2/openravepy/examples.tutorial_iksolutions/
     with LockRenderer():
-        commands = post_process(rovers_problem, plan)
+        commands = post_process(rovers_problem, plan, teleport=args.teleport)
         saver.restore()
 
+    draw_base_limits(rovers_problem.limits, color=(1, 0, 0))
     wait_for_user('Begin?')
     if args.simulate:
         control_commands(commands)

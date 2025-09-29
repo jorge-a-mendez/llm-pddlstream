@@ -10,7 +10,7 @@ from examples.pybullet.tamp.problems import sample_placements
 from examples.pybullet.turtlebot_rovers.problems import RoversProblem
 
 
-def problem1(n_rovers=1, n_objectives=1, n_rocks=2, n_soil=2, n_stores=1):
+def problem1(n_rovers=2, n_objectives=4, n_rocks=1, n_soil=1, n_stores=2):
     base_extent = 5.0
     base_limits = (-base_extent/2.*np.ones(2), base_extent/2.*np.ones(2))
 

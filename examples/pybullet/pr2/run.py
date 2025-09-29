@@ -4,7 +4,7 @@ from __future__ import print_function
 
 from pddlstream.algorithms.meta import solve, create_parser
 from examples.pybullet.utils.pybullet_tools.pr2_primitives import Pose, Conf, get_ik_ir_gen, get_motion_gen, \
-    get_stable_gen, get_grasp_gen, Attach, Detach, Clean, Cook, control_commands, \
+    get_stable_gen, get_grasp_gen, get_grasp_list, Attach, Detach, Clean, Cook, control_commands, \
     get_gripper_joints, GripperCommand, apply_commands, State
 from examples.pybullet.utils.pybullet_tools.pr2_problems import cleaning_problem, cooking_problem
 from examples.pybullet.utils.pybullet_tools.pr2_utils import get_arm_joints, ARM_NAMES, get_group_joints, get_group_conf
@@ -81,8 +81,8 @@ def extract_point2d(v):
     raise ValueError(v.stream)
 
 def opt_move_cost_fn(t):
-    q1, q2 = t.values
-    distance = get_distance(extract_point2d(q1), extract_point2d(q2))
+    # q1, q2 = t.values
+    # distance = get_distance(extract_point2d(q1), extract_point2d(q2))
     #return BASE_CONSTANT + distance / BASE_VELOCITY
     return 1
 
@@ -105,7 +105,7 @@ def opt_motion_fn(q1, q2):
 
 #######################################################
 
-def pddlstream_from_problem(problem, collisions=True, teleport=False):
+def pddlstream_from_problem(problem, collisions=True, teleport=False, algorithm=None):
     robot = problem.robot
 
     # TODO: integrate pr2 & tamp
@@ -150,11 +150,15 @@ def pddlstream_from_problem(problem, collisions=True, teleport=False):
                      [('On', b, s) for b, s in problem.goal_on] + \
                      [('Cleaned', b)  for b in problem.goal_cleaned] + \
                      [('Cooked', b)  for b in problem.goal_cooked]
+    
+    grasp_sampler = from_gen_fn(get_grasp_gen(problem, collisions=False)) if algorithm == 'sesame' else \
+        from_list_fn(get_grasp_list(problem, collisions=False)) 
+    max_ir_attempts = 25 if algorithm == 'sesame' else 1
 
     stream_map = {
         'sample-pose': from_gen_fn(get_stable_gen(problem, collisions=collisions)),
-        'sample-grasp': from_list_fn(get_grasp_gen(problem, collisions=False)),
-        'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, collisions=collisions, teleport=teleport)),
+        'sample-grasp': grasp_sampler,
+        'inverse-kinematics': from_gen_fn(get_ik_ir_gen(problem, collisions=collisions, teleport=teleport, max_ir_attempts=max_ir_attempts)),
         'plan-base-motion': from_fn(get_motion_gen(problem, collisions=collisions, teleport=teleport)),
 
         'test-cfree-pose-pose': from_test(get_cfree_pose_pose_test(collisions=collisions)),
@@ -238,7 +242,7 @@ def main(partial=False, defer=False, verbose=True):
     saver = WorldSaver()
     #dump_world()
 
-    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=args.teleport)
+    pddlstream_problem = pddlstream_from_problem(problem, collisions=not args.cfree, teleport=args.teleport, algorithm=args.algorithm)
 
     stream_info = {
         # 'test-cfree-pose-pose': StreamInfo(p_success=1e-3, verbose=verbose),

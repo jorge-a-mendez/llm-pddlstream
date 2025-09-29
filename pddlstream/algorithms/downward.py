@@ -65,7 +65,16 @@ from pddl_parser.parsing_functions import parse_domain_pddl, parse_task_pddl, \
     parse_condition, check_for_duplicates
 sys.argv = original_argv
 
-TEMP_DIR = 'temp/'
+import secrets
+import string
+import os 
+
+def generate_random_string(length=10):
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+TEMP_DIR = 'temp/' + generate_random_string() + '/'
+os.makedirs(TEMP_DIR, exist_ok=True)
 TRANSLATE_OUTPUT = 'output.sas'
 SEARCH_OUTPUT = 'sas_plan'
 SEARCH_COMMAND = 'downward --internal-plan-file {} {} < {}'

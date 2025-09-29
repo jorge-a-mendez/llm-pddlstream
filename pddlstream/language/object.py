@@ -15,6 +15,7 @@ class Object(object):
     _obj_from_id = {}
     _obj_from_value = {}
     _obj_from_name = {}
+    _obj_from_value_str = {}
     def __init__(self, value, stream_instance=None, name=None):
         self.value = value
         self.index = len(Object._obj_from_name)
@@ -27,6 +28,7 @@ class Object(object):
         Object._obj_from_name[self.pddl] = self
         if is_hashable(value):
             Object._obj_from_value[self.value] = self
+        Object._obj_from_value_str[str(value)] = self
     def is_unique(self):
         return True
     def is_shared(self):
@@ -42,12 +44,21 @@ class Object(object):
             return id(value) in Object._obj_from_id
         return value in Object._obj_from_value
     @staticmethod
+    def has_value_str(value_str):
+        return value_str in Object._obj_from_value_str
+
+    @staticmethod
     def from_value(value):
         if USE_HASH and not is_hashable(value):
             return Object.from_id(value)
         if value not in Object._obj_from_value:
             return Object(value)
         return Object._obj_from_value[value]
+    @staticmethod
+    def from_value_str(value_str):
+        if value_str not in Object._obj_from_value_str:
+            return Object(value_str)
+        return Object._obj_from_value_str[value_str]
     @staticmethod
     def from_name(name):
         return Object._obj_from_name[name]

@@ -23,20 +23,26 @@ Solution = namedtuple('Solution', ['plan', 'cost', 'time'])
 SOLUTIONS = [] # TODO: remove global variable
 
 class SolutionStore(object):
-    def __init__(self, evaluations, max_time, success_cost, verbose, max_memory=INF):
+    def __init__(self, evaluations, max_time, success_cost, verbose, max_memory=INF, start_time=None, sample_time=None):
         # TODO: store a map from head to value?
         # TODO: include other problem information here?
         # TODO: determine when the plan converges
         self.evaluations = evaluations
         #self.initial_evaluations = copy.copy(evaluations)
-        self.start_time = time.time()
+        if start_time is None:
+            self.start_time = time.time()
+        else:
+            self.start_time = start_time
         self.max_time = max_time
         self.max_memory = max_memory
         self.success_cost = success_cost # Inclusive
         self.verbose = verbose
         #self.best_cost = self.cost_fn(self.best_plan)
         self.solutions = []
-        self.sample_time = 0.
+        if sample_time is None:
+            self.sample_time = 0.
+        else: 
+            self.sample_time = sample_time
     @property
     def search_time(self):
         return self.elapsed_time() - self.sample_time

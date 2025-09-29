@@ -6,7 +6,8 @@ from pddlstream.algorithms.algorithm import parse_problem
 from pddlstream.algorithms.advanced import enforce_simultaneous, automatically_negate_externals
 from pddlstream.algorithms.common import SolutionStore
 from pddlstream.algorithms.constraints import PlanConstraints
-from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan
+from pddlstream.algorithms.disabled import push_disabled, reenable_disabled, process_stream_plan, \
+    process_stream_plan_backtracking
 from pddlstream.algorithms.disable_skeleton import create_disabled_axioms
 #from pddlstream.algorithms.downward import has_costs
 from pddlstream.algorithms.incremental import process_stream_queue
@@ -17,7 +18,7 @@ from pddlstream.algorithms.reorder import reorder_stream_plan
 from pddlstream.algorithms.skeleton import SkeletonQueue
 from pddlstream.algorithms.visualization import reset_visualizations, create_visualizations, \
     has_pygraphviz, log_plans
-from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE
+from pddlstream.language.constants import is_plan, get_length, str_from_plan, INFEASIBLE, PDDLProblem
 from pddlstream.language.fluent import compile_fluent_streams
 from pddlstream.language.function import Function, Predicate
 from pddlstream.language.optimizer import ComponentStream
@@ -67,6 +68,134 @@ def check_dominated(skeleton_queue, stream_plan):
             print(skeleton.stream_plan)
     raise NotImplementedError()
 
+def next_block(string):
+    """
+    Assume that string begins with a '('. Return the substring that
+    ends with the matching ')'.
+    """
+    assert string[0] == '('
+    stack = 1
+    for i in range(1, len(string)):
+        if string[i] == '(':
+            stack += 1
+        elif string[i] == ')':
+            stack -= 1
+            if stack == 0:
+                return string[:i+1], i
+    raise ValueError('No matching parenthesis in string: {}'.format(string))
+
+def add_new_predicate(domain_pddl, predicate):
+    # Split domain_pddl into lines
+    lines = domain_pddl.split('\n')
+    # Copy everything before predicates
+    str_before = []
+    for idx_before, l in enumerate(lines):
+        str_before.append(l)
+        if ":predicates" in l:
+            break
+    # Find the index of the next line that contains ":"
+    for idx_after, l in enumerate(lines[idx_before+1:], start=idx_before+1):
+        if ":" in l:
+            break
+    # Copy everything after predicates
+    str_after = [l for l in lines[idx_after:]]
+
+    # Copy everything in between
+    str_between = [l for l in lines[idx_before+1:idx_after]]
+    # Add the new predicate to the list
+    str_between = [f'    {predicate}'] + str_between
+    # Join everything back together
+    new_domain_pddl = '\n'.join(str_before + str_between + str_after)
+    return new_domain_pddl
+
+def add_new_preconditions(domain_pddl, preconditions):
+    if len(preconditions) == 0:
+        return domain_pddl
+    # Find first line that starts with "(:action"
+    action_start = domain_pddl.find("(:action")
+    
+    # Copy everything before the action
+    new_domain_str = domain_pddl[:action_start]
+    while len(preconditions) > 0:
+        # Find the current action block
+        action_block, action_end = next_block(domain_pddl[action_start:])
+        action_end += action_start
+        # Check if the name of the action block is in the preconditions
+        action_name = action_block.split()[1]
+        if action_name in preconditions:
+            # Find the index of the line that contains ":precondition"
+            precondition_start = action_block.find(":precondition ") + len(":precondition ")
+            precondition_block, precondition_end = next_block(action_block[precondition_start:])
+            if preconditions[action_name] not in precondition_block:
+                precondition_end += precondition_start
+                # Add the new precondition to the list
+                precondition_block_lines = precondition_block.split('\n')
+                ## Copy the leading whitespace from the penultimate line
+                if len(precondition_block_lines) < 2:
+                    leading_whitespace = ' ' * 8
+                else:
+                    leading_whitespace = precondition_block_lines[-2][:len(precondition_block_lines[-2]) - len(precondition_block_lines[-2].lstrip())]
+                new_line = f'{leading_whitespace}{preconditions[action_name]}'
+                precondition_block_lines.insert(-1, new_line)
+                precondition_block = '\n'.join(precondition_block_lines)
+                # Replace the old precondition block with the new one
+                action_block = action_block[:precondition_start] + precondition_block + action_block[precondition_end+1:]
+            # Remove the precondition from the dictionary
+            del preconditions[action_name]
+        # Add the (possibly modified) action block to the new domain
+        new_domain_str += action_block
+        # Move to the next action block
+        action_start = domain_pddl.find("(:action", action_end)
+        # Add anything in between action blocks
+        new_domain_str += domain_pddl[action_end+1:action_start]
+    # Add the rest of the domain
+    new_domain_str += domain_pddl[action_end+1:]
+    return new_domain_str
+    
+def add_new_effects(domain_pddl, effects):
+    if len(effects) == 0:
+        return domain_pddl
+    # Find first line that starts with "(:action"
+    action_start = domain_pddl.find("(:action")
+    # Copy everything before the action
+    new_domain_str = domain_pddl[:action_start]
+    while len(effects) > 0:
+        # Find the current action block
+        action_block, action_end = next_block(domain_pddl[action_start:])
+        action_end += action_start
+        # Check if the name of the action block is in the effects
+        action_name = action_block.split()[1]
+        if action_name in effects:
+            # Find the index of the line that contains ":effect"
+            effect_start = action_block.find(":effect ") + len(":effect ")
+            effect_block, effect_end = next_block(action_block[effect_start:])
+            effect_end += effect_start
+            # Add the new effect to the list
+            effect_block_lines = effect_block.split('\n')
+            ## Copy the leading whitespace from the penultimate line
+            if len(effect_block_lines) < 2:
+                leading_whitespace = ' ' * 8
+            else:
+                leading_whitespace = effect_block_lines[-2][:len(effect_block_lines[-2]) - len(effect_block_lines[-2].lstrip())]
+            for e in effects[action_name]:
+                if e not in effect_block:
+                    new_line = f'{leading_whitespace}{e}'
+                    effect_block_lines.insert(-1, new_line)
+            effect_block = '\n'.join(effect_block_lines)
+            # Replace the old precondition block with the new one
+            action_block = action_block[:effect_start] + effect_block + action_block[effect_end+1:]
+            # Remove the precondition from the dictionary
+            del effects[action_name]
+        # Add the (possibly modified) action block to the new domain
+        new_domain_str += action_block
+        # Move to the next action block
+        action_start = domain_pddl.find("(:action", action_end)
+        # Add anything in between action blocks
+        new_domain_str += domain_pddl[action_end+1:action_start]
+    # Add the rest of the domain
+    new_domain_str += domain_pddl[action_end+1:]
+    return new_domain_str
+
 ##################################################
 
 def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, replan_actions=set(),
@@ -75,7 +204,9 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
                   initial_complexity=0, complexity_step=1, max_complexity=INF,
                   max_skeletons=INF, search_sample_ratio=0, bind=True, max_failures=0,
                   unit_efforts=False, max_effort=INF, effort_weight=None, reorder=True,
-                  visualize=False, verbose=True, **search_kwargs):
+                  visualize=False, verbose=True, backtracking_search=False, 
+                  store=None, llm_info=None,
+                  error_str_backtracking=None, **search_kwargs):
     """
     Solves a PDDLStream problem by first planning with optimistic stream outputs and then querying streams
     :param problem: a PDDLStream problem
@@ -117,6 +248,28 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     # TODO: locally optimize only after a solution is identified
     # TODO: replan with a better search algorithm after feasible
     # TODO: change the search algorithm and unit costs based on the best cost
+    
+    if backtracking_search:
+        # JMM: add NotCausesFailure predicate
+        pddl_domain = problem.domain_pddl
+        if 'NotCausesFailure' not in pddl_domain:
+            pddl_domain = add_new_predicate(pddl_domain, '(NotCausesFailure ?culprit ?offended)')
+            obj = set(obj for fact in problem.init for obj in fact[1:]) | set(problem.constant_map.values()) | set(problem.constant_map.keys())
+            print(obj)
+            # for o in obj:
+            #     problem.init.append(('NotCausesFailure', o))
+            for o1 in obj:
+                for o2 in obj:
+                    problem.init.append(('NotCausesFailure', o1, o2))
+
+            # Also add unary version of NotCausesFailure
+            pddl_domain = add_new_predicate(pddl_domain, '(NotCausesFailureSolo ?offended)')
+            for o in obj:
+                problem.init.append(('NotCausesFailureSolo', o))
+
+            problem = PDDLProblem(pddl_domain, problem.constant_map, problem.stream_pddl, problem.stream_map, problem.init, problem.goal)
+            # print(problem.domain_pddl)
+            # print(problem.init)
     use_skeletons = (max_skeletons is not None)
     #assert implies(use_skeletons, search_sample_ratio > 0)
     eager_disabled = (effort_weight is None)  # No point if no stream effort biasing
@@ -146,10 +299,13 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     assert implies(has_optimizers, use_skeletons)
 
     ################
-
-    store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
+    if store is None:
+        store = SolutionStore(evaluations, max_time, success_cost, verbose, max_memory=max_memory)
+    else:
+        store.evaluations = evaluations
     skeleton_queue = SkeletonQueue(store, domain, disable=not has_optimizers)
     disabled = set() # Max skeletons after a solution
+    is_timeout_fn = store.is_timeout
     while (not store.is_terminated()) and (num_iterations < max_iterations) and (complexity_limit <= max_complexity):
         num_iterations += 1
         eager_instantiator = Instantiator(eager_externals, evaluations) # Only update after an increase?
@@ -165,14 +321,20 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
               'Eager Calls: {} | Cost: {:.3f} | Search Time: {:.3f} | Sample Time: {:.3f} | Total Time: {:.3f}'.format(
             num_iterations, complexity_limit, len(skeleton_queue.skeletons), len(skeleton_queue), len(disabled),
             len(evaluations), eager_calls, store.best_cost, store.search_time, store.sample_time, store.elapsed_time()))
+        # if len(skeleton_queue) > 0:
+        #     exit()
         optimistic_solve_fn = get_optimistic_solve_fn(goal_exp, domain, negative,
                                                       replan_actions=replan_actions, reachieve=use_skeletons,
                                                       max_cost=min(store.best_cost, constraints.max_cost),
-                                                      max_effort=max_effort, effort_weight=effort_weight, **search_kwargs)
+                                                      max_effort=max_effort, effort_weight=effort_weight,
+                                                      error_str_backtracking=error_str_backtracking,
+                                                      pddl_problem=problem, is_timeout_fn=is_timeout_fn,
+                                                      llm_info=llm_info, **search_kwargs)
         # TODO: just set unit effort for each stream beforehand
         if (max_skeletons is None) or (len(skeleton_queue.skeletons) < max_skeletons):
             disabled_axioms = create_disabled_axioms(skeleton_queue) if has_optimizers else []
             if disabled_axioms:
+                print('Disabling axioms:', disabled_axioms)
                 domain.axioms.extend(disabled_axioms)
             stream_plan, opt_plan, cost = iterative_plan_streams(evaluations, positive_externals,
                 optimistic_solve_fn, complexity_limit, max_effort=max_effort)
@@ -197,11 +359,16 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
         print('Stream plan ({}, {}, {:.3f}): {}\nAction plan ({}, {:.3f}): {}'.format(
             get_length(stream_plan), num_optimistic, compute_plan_effort(stream_plan), stream_plan,
             get_length(action_plan), cost, str_from_plan(action_plan)))
+        print(f'Goal: {problem.goal}')
         if is_plan(stream_plan) and visualize:
             log_plans(stream_plan, action_plan, num_iterations)
             create_visualizations(evaluations, stream_plan, num_iterations)
 
         ################
+
+        if is_timeout_fn():
+            # Timed out, must exit
+            break
 
         if (stream_plan is INFEASIBLE) and (not eager_instantiator) and (not skeleton_queue) and (not disabled):
             break
@@ -213,9 +380,46 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
 
         #print(stream_plan_complexity(evaluations, stream_plan))
         if not use_skeletons:
-            process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost, bind=bind, max_failures=max_failures)
+            if backtracking_search:
+                updates = process_stream_plan_backtracking(store, domain, disabled, stream_plan, opt_plan, cost, bind=bind, max_failures=max_failures)
+                if updates: # means backtracking failed, need to try again
+                    # if ('pddl_llm' not in search_kwargs or not search_kwargs['pddl_llm']) and ('integrated_llm' not in search_kwargs or not search_kwargs['integrated_llm']):
+                    # Add changes to domain
+                    pddl_domain = domain.pddl
+                    # pddl_domain = add_new_predicate(pddl_domain, updates['new_predicate'])
+                    # pddl_domain = add_new_preconditions(pddl_domain, updates['new_preconditions'])
+                    # pddl_domain = add_new_effects(pddl_domain, updates['new_effects'])
+                    # Add changes to problem
+                    # problem.init.append(updates['new_init_atom'])                    # Create new problem tuple
+                    pddl_domain = add_new_preconditions(pddl_domain, updates['new_preconditions'])
+                    pddl_domain = add_new_effects(pddl_domain, updates['new_effects'])
+                    new_init = []
+                    for fact in problem.init:
+                        if updates['remove_init_atom'] is not None and updates['remove_init_atom'][0] == 'NotCausesFailureSolo':
+                            # Instead, remove any fact that involves the object
+                            if str(updates['remove_init_atom'][1]) in str(fact):
+                                continue
+                        if str(fact) != str(updates['remove_init_atom']):
+                            # JMM: probably should compare actual objects but somehow it always returns false
+                            new_init.append(fact)
+                    if updates['remove_init_atom'] is not None and updates['remove_init_atom'][0] == 'NotCausesFailureSolo':
+                        # Since we're removing the actual object from the PDDL, maybe just ignore the error_str
+                        updates['error_str_backtracking'] = None
+                    problem = PDDLProblem(pddl_domain, problem.constant_map, problem.stream_pddl, problem.stream_map, new_init, problem.goal)
+                    print(problem.domain_pddl)
+                    print(problem.init)
+                    return solve_abstract(problem, constraints=constraints, stream_info=stream_info, replan_actions=replan_actions,
+                        unit_costs=unit_costs, success_cost=success_cost,
+                        max_time=max_time, max_iterations=max_iterations, max_memory=max_memory,
+                        initial_complexity=initial_complexity, complexity_step=complexity_step, max_complexity=max_complexity,
+                        max_skeletons=max_skeletons, search_sample_ratio=search_sample_ratio, bind=bind, max_failures=max_failures,
+                        unit_efforts=unit_efforts, max_effort=max_effort, effort_weight=effort_weight, reorder=reorder,
+                        visualize=visualize, verbose=verbose, backtracking_search=backtracking_search,
+                        store=store, llm_info=llm_info,
+                        error_str_backtracking=updates['error_str_backtracking'], **search_kwargs)
+            else:
+                process_stream_plan(store, domain, disabled, stream_plan, opt_plan, cost, bind=bind, max_failures=max_failures)
             continue
-
         ################
 
         #optimizer_plan = replan_with_optimizers(evaluations, stream_plan, domain, optimizers)
@@ -225,6 +429,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
             print('Optimizer plan ({}, {:.3f}): {}'.format(
                 get_length(optimizer_plan), compute_plan_effort(optimizer_plan), optimizer_plan))
             skeleton_queue.new_skeleton(optimizer_plan, opt_plan, cost)
+
 
         allocated_sample_time = (search_sample_ratio * store.search_time) - store.sample_time \
             if len(skeleton_queue.skeletons) <= max_skeletons else INF
@@ -242,7 +447,7 @@ def solve_abstract(problem, constraints=PlanConstraints(), stream_info={}, repla
     print('Summary: {}'.format(str_from_object(summary, ndigits=3))) # TODO: return the summary
 
     write_stream_statistics(externals, verbose)
-    return store.extract_solution()
+    return store
 
 solve_focused = solve_abstract # TODO: deprecate solve_focused
 
@@ -272,7 +477,11 @@ def solve_binding(problem, fail_fast=False, **kwargs):
         (or None), cost is the cost of the plan, and evaluations is init but expanded
         using stream applications
     """
-    max_failures = 0 if fail_fast else INF
+    if "max_failures" in kwargs:
+        max_failures = kwargs["max_failures"]
+        del kwargs["max_failures"]
+    else:
+        max_failures = 0 if fail_fast else INF
     return solve_abstract(problem, max_skeletons=None, search_sample_ratio=None,
                           bind=True, max_failures=max_failures, **kwargs)
 

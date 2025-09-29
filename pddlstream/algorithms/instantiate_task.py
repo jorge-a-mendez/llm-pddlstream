@@ -173,7 +173,6 @@ def dump_instantiated(instantiated):
 
 def instantiate_task(task, check_infeasible=True, use_fd=FD_INSTANTIATE, **kwargs):
     start_time = time()
-    print()
     normalize.normalize(task)
     #with Profiler(field='tottime', num=25):
     if use_fd:

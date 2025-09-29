@@ -11,9 +11,17 @@ DEBUG = 'debug'
 SHARED_DEBUG = 'shared_debug'
 DEBUG_MODES = [DEBUG, SHARED_DEBUG]
 
-never_defer = lambda *args, **kwargs: False
-defer_unique = lambda result, *args, **kwargs: result.is_refined()
-defer_shared = lambda *args, **kwargs: True
+# never_defer = lambda *args, **kwargs: False
+# defer_unique = lambda result, *args, **kwargs: result.is_refined()
+# defer_shared = lambda *args, **kwargs: True
+
+# Replace the above functions so they can be pickled
+def never_defer(*args, **kwargs):
+    return False
+def defer_unique(result, *args, **kwargs):
+    return result.is_refined()
+def defer_shared(*args, **kwargs):
+    return True
 
 def select_inputs(instance, inputs):
     external = instance.external
