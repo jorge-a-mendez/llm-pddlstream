@@ -1,3 +1,45 @@
+# LLM-PDDLStream
+
+Replace components of PDDLStream with LLM prompting, specifically with Gemini 2.5 Flash. This repository contains both code to run experiments and data from the experiments in our paper "A Systematic Study of Large Language Models for Task and Motion Planning With PDDLStream". The `prompt_templates/` directory contains the templates used to prompt the LLM (these templates are for illustration purposes and are not loaded in the LLM planning code). The `results/` directory contains the results from running our planners. Each subdirectory contains an `llm_info.pkl` and a `store.pkl` files. `results_analyzer.py` parses all results to produce the plots in the paper. The `chats/` directory contains all the dialogs with the LLMs. 
+
+To reproduce the results in the paper, you can use the following bash script:
+
+```
+MAX_JOBS=1
+
+
+for seed in `seq 0 49`; do
+    for algorithm in "sesame" "adaptive"; do
+        for llm_args in "" "-integrated_llm -thinking_llm" "-pddl_llm -thinking_llm" "-pose_sampler_llm -thinking_llm" "-pddl_llm -pose_sampler_llm -thinking_llm" "-integrated_llm" "-pddl_llm" "-pose_sampler_llm" "-pddl_llm -pose_sampler_llm"; do
+            for domain_command_args in "examples.pybullet.tamp.run -problem packed -n 3" "examples.pybullet.tamp.run -problem packed -n 4" "examples.pybullet.tamp.run -problem packed -n 5" "examples.pybullet.tamp.run -problem blocked -n 1" "examples.pybullet.turtlebot_rovers.run -n 2" "examples.pybullet.turtlebot_rovers.run -n 3" "examples.pybullet.turtlebot_rovers.run -n 4"; do
+
+                # If algorithm is sesame and the domain contains "turtlebot", skip this iteration
+                if [[ "$algorithm" == "sesame" && "$domain_command_args" == *"turtlebot"* ]]; then
+                    continue
+                fi
+                
+                echo "Running $algorithm$llm_args$domain_command_args with seed $seed"
+                export GEMINI_API_KEY=<your_gemini_key>
+                sudo -E nice -10 python -m $domain_command_args -t 300 -a $algorithm $llm_args -seed $seed --results_dir results/"$algorithm$llm_args$domain_command_args"_$seed > logs/out_"$algorithm$llm_args$domain_command_args"_$seed.log 2>&1 &
+
+                # If we already have MAX_JOBS running, wait for one to finish
+                while [ "$(jobs -rp | wc -l)" -ge "$MAX_JOBS" ]; do
+                    sleep 1
+                done
+
+                sleep 60
+
+                # Actually, we need to always wait for 60 seconds to "clear" the quota
+                sleep 60
+            done
+        done
+    done
+done
+
+```
+
+
+---
 # pddlstream
 
 PDDLStream is a planning framework comprised of an action language and suite of algorithms for Artificial Intelligence (AI) planning in the presence of sampling procedures.
