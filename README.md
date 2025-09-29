@@ -27,9 +27,7 @@ for seed in `seq 0 49`; do
                     sleep 1
                 done
 
-                sleep 60
-
-                # Actually, we need to always wait for 60 seconds to "clear" the quota
+                # Sleep for 60 seconds to "clear" the API token quota
                 sleep 60
             done
         done
