@@ -1,0 +1,219 @@
+User:      Here is a list of objects present in this scene for this task: 
+           
+           ```
+           #o0: object
+           #o1: object
+           #o2: object
+           #o3: object
+           #o4: object
+           #o5: object
+           v1: object
+           v10: object
+           v11: object
+           v12: object
+           v13: object
+           v14: object
+           v15: object
+           v16: object
+           v17: object
+           v18: object
+           v19: object
+           v2: object
+           v3: object
+           v4: object
+           v5: object
+           v6: object
+           v7: object
+           v8: object
+           v9: object
+           ```
+           
+           The initial state is given by the following facts: 
+           
+           ```
+           Atom mode(v11)
+           Atom camera(v10)
+           Atom store(v16)
+           Atom type(v4, v2)
+           Atom rover(v14)
+           Atom type(v3, v2)
+           Atom rock(v7)
+           Atom conf(v14, v15)
+           Atom rock(v4)
+           Atom onboard(v10, v14)
+           Atom free(v14, v16)
+           Atom objective(v19)
+           Atom type(v1, v2)
+           Atom type(v7, v6)
+           Atom supports(v10, v11)
+           Atom type(v5, v6)
+           Atom onboard(v10, v12)
+           Atom rock(v1)
+           Atom type(v8, v6)
+           Atom lander(v9)
+           Atom objective(v17)
+           Atom atconf(v12, v13)
+           Atom rock(v8)
+           Atom rock(v3)
+           Atom rock(v5)
+           Atom rover(v12)
+           Atom free(v12, v16)
+           Atom atconf(v14, v15)
+           Atom conf(v12, v13)
+           Atom objective(v18)
+           Atom motion(v12, v13, #o2, v13)
+           Atom imagevisible(v12, #o3, #o4, v18)
+           Atom imagerange(v12, #o3, v18)
+           Atom conf(v12, #o3)
+           Atom ray(#o4)
+           Atom above(v12, #o5, v5)
+           Atom conf(v12, #o5)
+           Atom above(v12, #o5, v3)
+           Atom above(v12, #o5, v8)
+           Atom imagevisible(v14, #o3, #o4, v18)
+           Atom imagerange(v14, #o3, v18)
+           Atom conf(v14, #o3)
+           Atom above(v14, #o5, v3)
+           Atom conf(v14, #o5)
+           Atom above(v14, #o5, v8)
+           Atom above(v14, #o5, v5)
+           Atom imagevisible(v12, #o3, #o4, v19)
+           Atom imagerange(v12, #o3, v19)
+           Atom imagevisible(v14, #o3, #o4, v19)
+           Atom imagerange(v14, #o3, v19)
+           Atom imagevisible(v14, #o3, #o4, v17)
+           Atom imagerange(v14, #o3, v17)
+           Atom imagevisible(v12, #o3, #o4, v17)
+           Atom imagerange(v12, #o3, v17)
+           Atom above(v14, #o5, v4)
+           Atom above(v12, #o5, v4)
+           Atom comvisible(v14, #o0, #o1, v9)
+           Atom comrange(v14, #o0, v9)
+           Atom conf(v14, #o0)
+           Atom ray(#o1)
+           Atom comvisible(v12, #o0, #o1, v9)
+           Atom comrange(v12, #o0, v9)
+           Atom conf(v12, #o0)
+           Atom motion(v14, v15, #o2, v15)
+           Atom above(v12, #o5, v1)
+           Atom above(v14, #o5, v1)
+           Atom above(v12, #o5, v7)
+           Atom above(v14, #o5, v7)
+           ```
+           
+           The goal expression is `Atom new-axiom@0()`. Given these elements, the list of available action instances is:
+           
+           ```
+           ((move v12 v13 #o2 v13))
+           ((move v14 v15 #o2 v15))
+           ((drop_rock v12 v16))
+           ((drop_rock v14 v16))
+           ```
+           
+           Please provide a plan that achieves the goal from the initial state.
+
+(Thoughts: **Goal-Oriented Planning for New Axiom Implementation**
+           
+           My objective is to construct a plan that achieves the desired outcome, specifically `new-axiom@0()`, using the given initial state and available actions. The challenge lies in interpreting the goal's conditions and designing a sequence of actions that guarantee their satisfaction.
+           
+           Firstly, I've broken down the goal `new-axiom@0()`. This translates to securing: three images from the camera, analyses of a stone and soil sample, and then ensuring that the rovers' stores are free at the end of the plan. Initially, the following facts are already true.
+           1. Two rovers are at the locations they should be, with the same configurations.
+           2. The stores are free.
+           
+           The main actions that are relevant here are `send_image`, `take_image`, `send_analysis`, `sample_rock`, and `drop_rock`. 
+           
+           To secure the three images and to achieve the `receivedimage` conditions of the goal, it is required that the rovers utilize the `take_image` action to make sure they have the images, then the `send_image` action to transmit them to the lander. The camera on the rovers will need to be calibrated for each image taken. This should be repeated for the three images for the rover.
+           
+           To achieve `receivedanalysis` conditions, it requires that the rover uses the `sample_rock` action on a stone and soil type, then using the `send_analysis` action to send it to the lander. The store of each rover will be full after it samples a rock, and the goal requires free stores in the final state. So, the `drop_rock` action must be executed after `send_analysis`, freeing the store.
+           
+           For simplicity, let the rovers operate in parallel, since it is not specified whether they should operate in sequence or not. The three images and the analysis for stone and soil do not interfere. Therefore, these actions can be carried out in sequence.
+           
+           I need to confirm all the preconditions of the action and verify the effects of each actions taken, such that they fulfill all required conditions to the goals. All actions, their preconditions, and effects are as such:
+           1.  **Calibration and Image Acquisition:**
+               *   Calibrate the camera for each target objective.
+               *   Capture images of each objective using `take_image`.
+               *   Then, Send the captured images to the lander using `send_image`.
+           2.  **Analysis and Data Transmission:**
+               *   Sample the rock and soil samples using `sample_rock`.
+               *   Then, Send the results to the lander using `send_analysis`.
+               *   Finally, Drop the rocks to free up the stores.
+           
+           The final plan will be a sequence of actions which follow these key rules in the given order.
+           
+           This careful planning will ensure that all the necessary conditions for the `new-axiom@0()` goal are met and that all the preconditions of the actions are satisfied, thereby, achieving the desired goal state.
+           
+)
+
+Model:     **Goal-Oriented Planning for New Axiom Implementation**
+           
+           My objective is to construct a plan that achieves the desired outcome, specifically `new-axiom@0()`, using the given initial state and available actions. The challenge lies in interpreting the goal's conditions and designing a sequence of actions that guarantee their satisfaction.
+           
+           Firstly, I've broken down the goal `new-axiom@0()`. This translates to securing: three images from the camera, analyses of a stone and soil sample, and then ensuring that the rovers' stores are free at the end of the plan. Initially, the following facts are already true.
+           1. Two rovers are at the locations they should be, with the same configurations.
+           2. The stores are free.
+           
+           The main actions that are relevant here are `send_image`, `take_image`, `send_analysis`, `sample_rock`, and `drop_rock`. 
+           
+           To secure the three images and to achieve the `receivedimage` conditions of the goal, it is required that the rovers utilize the `take_image` action to make sure they have the images, then the `send_image` action to transmit them to the lander. The camera on the rovers will need to be calibrated for each image taken. This should be repeated for the three images for the rover.
+           
+           To achieve `receivedanalysis` conditions, it requires that the rover uses the `sample_rock` action on a stone and soil type, then using the `send_analysis` action to send it to the lander. The store of each rover will be full after it samples a rock, and the goal requires free stores in the final state. So, the `drop_rock` action must be executed after `send_analysis`, freeing the store.
+           
+           For simplicity, let the rovers operate in parallel, since it is not specified whether they should operate in sequence or not. The three images and the analysis for stone and soil do not interfere. Therefore, these actions can be carried out in sequence.
+           
+           I need to confirm all the preconditions of the action and verify the effects of each actions taken, such that they fulfill all required conditions to the goals. All actions, their preconditions, and effects are as such:
+           1.  **Calibration and Image Acquisition:**
+               *   Calibrate the camera for each target objective.
+               *   Capture images of each objective using `take_image`.
+               *   Then, Send the captured images to the lander using `send_image`.
+           2.  **Analysis and Data Transmission:**
+               *   Sample the rock and soil samples using `sample_rock`.
+               *   Then, Send the results to the lander using `send_analysis`.
+               *   Finally, Drop the rocks to free up the stores.
+           
+           The final plan will be a sequence of actions which follow these key rules in the given order.
+           
+           This careful planning will ensure that all the necessary conditions for the `new-axiom@0()` goal are met and that all the preconditions of the actions are satisfied, thereby, achieving the desired goal state.
+           
+
+User:      The plan you provided contains the following invalid actions: `(calibrate v12 v13 #o4 v17 v10), (take_image v12 v13 #o4 v17 v10 v11), (calibrate v12 v13 #o4 v18 v10), (take_image v12 v13 #o4 v18 v10 v11), (calibrate v12 v13 #o4 v19 v10), (take_image v12 v13 #o4 v19 v10 v11), (send_image v12 v13 #o1 v9 v17 v11), (send_image v12 v13 #o1 v9 v18 v11), (send_image v12 v13 #o1 v9 v19 v11), (sample_rock v12 v13 v4 v16), (send_analysis v12 v13 #o1 v9 v4), (sample_rock v14 v15 v5 v16), (send_analysis v14 v15 #o1 v9 v5)`. Recall that you are only allowed to use valid actions from the following list: 
+           
+           ```
+           ((move v12 v13 #o2 v13))
+           ((move v14 v15 #o2 v15))
+           ((drop_rock v12 v16))
+           ((drop_rock v14 v16))
+           ```
+           
+           Please provide a plan that achieves the goal from the initial state using only the valid actions and adhering to the response format.
+
+(Thoughts: **Re-evaluating the Plan: A Critical Constraint**
+           
+           Okay, I've got a problem. The user's provided list of *valid* actions is a hard constraint I missed initially. My previous plan clearly included actions not in this list. That's a fundamental error.
+           
+           Let's break down the current scenario. The ultimate goal is to achieve `Atom new-axiom@0()`, but the preconditions are a tough set: `atconf`, `free`, and then a trio of `receivedimage` and `receivedanalysis` predicates.
+           
+           Initially, I've got `atconf` and `free` conditions satisfied. The issue is with the other conditions; none are true in the initial state: I'm missing the image and analysis data.
+           
+           The user's list restricts me to two ineffective `move` actions and the `drop_rock` action. This list does not include the actions I would expect to find: `calibrate`, `take_image`, `send_image`, `sample_rock`, and `send_analysis`. This list is a limiting factor in planning.
+           
+           The `drop_rock` actions won't work either. They require the rovers to be *full* which contradicts their initial *free* state. This leaves me stuck.
+           
+           In essence, with the given action set, none of the necessary `receivedimage` or `receivedanalysis` predicates are achievable. This also means that the goal, `Atom new-axiom@0()`, is unreachable from the current state. I need to re-evaluate the plan, and likely request more context from the user.
+           
+)
+
+Model:     **Re-evaluating the Plan: A Critical Constraint**
+           
+           Okay, I've got a problem. The user's provided list of *valid* actions is a hard constraint I missed initially. My previous plan clearly included actions not in this list. That's a fundamental error.
+           
+           Let's break down the current scenario. The ultimate goal is to achieve `Atom new-axiom@0()`, but the preconditions are a tough set: `atconf`, `free`, and then a trio of `receivedimage` and `receivedanalysis` predicates.
+           
+           Initially, I've got `atconf` and `free` conditions satisfied. The issue is with the other conditions; none are true in the initial state: I'm missing the image and analysis data.
+           
+           The user's list restricts me to two ineffective `move` actions and the `drop_rock` action. This list does not include the actions I would expect to find: `calibrate`, `take_image`, `send_image`, `sample_rock`, and `send_analysis`. This list is a limiting factor in planning.
+           
+           The `drop_rock` actions won't work either. They require the rovers to be *full* which contradicts their initial *free* state. This leaves me stuck.
+           
+           In essence, with the given action set, none of the necessary `receivedimage` or `receivedanalysis` predicates are achievable. This also means that the goal, `Atom new-axiom@0()`, is unreachable from the current state. I need to re-evaluate the plan, and likely request more context from the user.
+           
+

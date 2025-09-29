@@ -1,0 +1,120 @@
+User:      Here is a list of objects present in this scene for this task: 
+           
+           ```
+           #o0: object
+           #o1: object
+           #o2: object
+           v10: object
+           v11: object
+           v12: object
+           v13: object
+           v14: object
+           v15: object
+           v16: object
+           v17: object
+           v18: object
+           v3: object
+           v4: object
+           v5: object
+           v6: object
+           v7: object
+           v8: object
+           v9: object
+           ```
+           
+           Some of the objects represent continuous values that have already been computed. In particular:
+           Object v9 is a pose with position (4.5, 0.3, 0.8) and quaternion (0.0, 0.0, 0.0, 1.0).
+           Object v5 is an arm configuration with joint values (0.393, 0.333, 0.0, -1.522, 2.722, -1.219, -2.989).
+           Object v12 is an object with axis aligned bounding box (AABB = ((minx, miny), (maxx, maxy))): ((-4.758, 0.481), (-4.661, 0.578)).
+           Object v15 is an object with axis aligned bounding box (AABB = ((minx, miny), (maxx, maxy))): ((4.315, 0.265), (4.385, 0.335)).
+           Object v3 is a base configuration with (x, y, theta) = (2.5, 0.0, 0.0).
+           Object v13 is a pose with position (-4.709, 0.529, 0.801) and quaternion (0.0, 0.0, -0.478, 0.878).
+           Object v7 is an arm configuration with joint values (-2.135, 1.296, -3.75, -0.15, -10000.0, -0.1, -10000.0).
+           Object v16 is a pose with position (4.35, 0.3, 0.8) and quaternion (0.0, 0.0, 0.0, 1.0).
+           Object v18 is an object with axis aligned bounding box (AABB = ((minx, miny), (maxx, maxy))): ((4.2, -0.6), (4.8, 0.0)).
+           Object v11 is an object with axis aligned bounding box (AABB = ((minx, miny), (maxx, maxy))): ((4.2, -0.6), (4.8, 0.6)).
+           Object v8 is an object with axis aligned bounding box (AABB = ((minx, miny), (maxx, maxy))): ((4.465, 0.265), (4.535, 0.335)).
+           Object v14 is an object with axis aligned bounding box (AABB = ((minx, miny), (maxx, maxy))): ((-4.8, -0.6), (-4.2, 0.6)).
+           
+           You *must* use these values to select actions that are more likely to be executable (e.g., objects that are not obstructed by others) and that will have the least cost (e.g., objects that are closer to the robot or to the target region).
+           
+           The initial state is given by the following facts: 
+           
+           ```
+           Atom atpose(v12, v13)
+           Atom supported(v8, v9, v11)
+           Atom pose(v12, v13)
+           Atom supported(v12, v13, v14)
+           Atom supported(v15, v16, v11)
+           Atom stackable(v12, v18)
+           Atom bconf(v3)
+           Atom graspable(v15)
+           Atom handempty(v6)
+           Atom graspable(v8)
+           Atom stackable(v8, v10)
+           Atom arm(v4)
+           Atom atbconf(v3)
+           Atom arm(v6)
+           Atom stackable(v15, v10)
+           Atom type(v8, v17)
+           Atom graspable(v12)
+           Atom atpose(v15, v16)
+           Atom type(v12, v17)
+           Atom stackable(v12, v10)
+           Atom aconf(v6, v7)
+           Atom atpose(v8, v9)
+           Atom ataconf(v6, v7)
+           Atom pose(v15, v16)
+           Atom pose(v8, v9)
+           Atom ataconf(v4, v5)
+           Atom stackable(v8, v18)
+           Atom handempty(v4)
+           Atom controllable(v4)
+           Atom aconf(v4, v5)
+           Atom canmove()
+           Atom pose(v12, #o2)
+           Atom supported(v12, #o2, v18)
+           Atom pose(v8, #o2)
+           Atom supported(v8, #o2, v18)
+           Atom supported(v8, #o2, v10)
+           Atom supported(v12, #o2, v10)
+           Atom grasp(v12, #o1)
+           Atom pose(v15, #o2)
+           Atom supported(v15, #o2, v10)
+           Atom grasp(v8, #o1)
+           Atom grasp(v15, #o1)
+           Atom btraj(#o0)
+           Atom basemotion(v3, #o0, v3)
+           ```
+           
+           The goal expression is `Atom new-axiom@0()`. Given these elements, the list of available action instances is:
+           
+           ```
+           ((move_base v3 v3 #o0))
+           ```
+           
+           Please provide a plan that achieves the goal from the initial state.
+
+(Thoughts: **The Impossibility of Achieving the Goal**
+           
+           Okay, here's the breakdown of my thought process: I've been tasked with planning a way to achieve the goal `new-axiom@0()`, which I've determined is equivalent to having an object of type `v17` be *on* the object `v18`.  Given the initial state, the candidate objects that have the correct type are `v8` and `v12`.  So, essentially, I need either `on(v8, v18)` or `on(v12, v18)` to be true.
+           
+           I know from the axiom definition that `on(?o, ?r)` requires both `supported(?o, ?p, ?r)` and `atpose(?o, ?p)` to hold. I then checked for `v8` and `v12` to see whether they satisfy those conditions.  I found that neither `v8` at `v9` nor `v12` at `v13` are supported by `v18` in the initial state.  However, I did find that both `v8` and `v12` could be supported by `v18` if they were at a pose called `#o2`.
+           
+           Here's the problem: the only action available to the robot is `move_base v3 v3 #o0`, which doesn't actually move the robot from `v3` to `v3`. This is a clear indicator that the robot cannot interact with objects.  I see a whole list of available grasp and pose options that indicate `pick` and `place` actions would be the way forward (i.e., if I could *pick* up `v8` or `v12` and *place* them on `#o2`), but these are not permitted actions. The constraint is very clear: "Any action instance that is not in the given list is not allowed to be used in the plan."
+           
+           Since the robot can't manipulate objects, it can't change the `atpose` facts.  Therefore, I cannot make either `on(v8, v18)` or `on(v12, v18)` true starting from the given initial state.  In other words, the goal *is not achievable* given the limitations.  My conclusion is that `new-axiom@0()` cannot be satisfied.
+           
+)
+
+Model:     **The Impossibility of Achieving the Goal**
+           
+           Okay, here's the breakdown of my thought process: I've been tasked with planning a way to achieve the goal `new-axiom@0()`, which I've determined is equivalent to having an object of type `v17` be *on* the object `v18`.  Given the initial state, the candidate objects that have the correct type are `v8` and `v12`.  So, essentially, I need either `on(v8, v18)` or `on(v12, v18)` to be true.
+           
+           I know from the axiom definition that `on(?o, ?r)` requires both `supported(?o, ?p, ?r)` and `atpose(?o, ?p)` to hold. I then checked for `v8` and `v12` to see whether they satisfy those conditions.  I found that neither `v8` at `v9` nor `v12` at `v13` are supported by `v18` in the initial state.  However, I did find that both `v8` and `v12` could be supported by `v18` if they were at a pose called `#o2`.
+           
+           Here's the problem: the only action available to the robot is `move_base v3 v3 #o0`, which doesn't actually move the robot from `v3` to `v3`. This is a clear indicator that the robot cannot interact with objects.  I see a whole list of available grasp and pose options that indicate `pick` and `place` actions would be the way forward (i.e., if I could *pick* up `v8` or `v12` and *place* them on `#o2`), but these are not permitted actions. The constraint is very clear: "Any action instance that is not in the given list is not allowed to be used in the plan."
+           
+           Since the robot can't manipulate objects, it can't change the `atpose` facts.  Therefore, I cannot make either `on(v8, v18)` or `on(v12, v18)` true starting from the given initial state.  In other words, the goal *is not achievable* given the limitations.  My conclusion is that `new-axiom@0()` cannot be satisfied.
+           
+

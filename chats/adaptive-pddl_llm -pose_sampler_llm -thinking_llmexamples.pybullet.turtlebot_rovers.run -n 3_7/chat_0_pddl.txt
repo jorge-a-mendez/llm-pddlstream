@@ -1,0 +1,147 @@
+User:      Here is a list of objects present in this scene for this task: 
+           
+           ```
+           #o0: object
+           #o1: object
+           #o2: object
+           #o3: object
+           #o4: object
+           #o5: object
+           v1: object
+           v10: object
+           v11: object
+           v12: object
+           v13: object
+           v14: object
+           v15: object
+           v16: object
+           v17: object
+           v18: object
+           v19: object
+           v2: object
+           v3: object
+           v4: object
+           v5: object
+           v6: object
+           v7: object
+           v8: object
+           v9: object
+           ```
+           
+           The initial state is given by the following facts: 
+           
+           ```
+           Atom camera(v10)
+           Atom rover(v14)
+           Atom atconf(v14, v15)
+           Atom onboard(v10, v14)
+           Atom type(v7, v6)
+           Atom supports(v10, v11)
+           Atom type(v5, v6)
+           Atom type(v1, v2)
+           Atom lander(v9)
+           Atom type(v4, v2)
+           Atom store(v16)
+           Atom rock(v5)
+           Atom atconf(v12, v13)
+           Atom free(v12, v16)
+           Atom rover(v12)
+           Atom type(v8, v6)
+           Atom rock(v8)
+           Atom objective(v18)
+           Atom onboard(v10, v12)
+           Atom type(v3, v2)
+           Atom mode(v11)
+           Atom rock(v7)
+           Atom objective(v19)
+           Atom free(v14, v16)
+           Atom rock(v1)
+           Atom rock(v4)
+           Atom objective(v17)
+           Atom conf(v14, v15)
+           Atom conf(v12, v13)
+           Atom rock(v3)
+           Atom motion(v12, v13, #o2, v13)
+           Atom above(v14, #o5, v3)
+           Atom conf(v14, #o5)
+           Atom motion(v14, v15, #o2, v15)
+           Atom imagevisible(v14, #o3, #o4, v17)
+           Atom imagerange(v14, #o3, v17)
+           Atom conf(v14, #o3)
+           Atom ray(#o4)
+           Atom above(v14, #o5, v4)
+           Atom above(v14, #o5, v5)
+           Atom above(v14, #o5, v1)
+           Atom imagevisible(v14, #o3, #o4, v19)
+           Atom imagerange(v14, #o3, v19)
+           Atom above(v14, #o5, v7)
+           Atom comvisible(v14, #o0, #o1, v9)
+           Atom comrange(v14, #o0, v9)
+           Atom conf(v14, #o0)
+           Atom ray(#o1)
+           Atom imagevisible(v14, #o3, #o4, v18)
+           Atom imagerange(v14, #o3, v18)
+           Atom above(v14, #o5, v8)
+           Atom above(v12, #o5, v7)
+           Atom conf(v12, #o5)
+           Atom imagevisible(v12, #o3, #o4, v17)
+           Atom imagerange(v12, #o3, v17)
+           Atom conf(v12, #o3)
+           Atom imagevisible(v12, #o3, #o4, v18)
+           Atom imagerange(v12, #o3, v18)
+           Atom above(v12, #o5, v1)
+           Atom above(v12, #o5, v5)
+           Atom above(v12, #o5, v3)
+           Atom comvisible(v12, #o0, #o1, v9)
+           Atom comrange(v12, #o0, v9)
+           Atom conf(v12, #o0)
+           Atom above(v12, #o5, v4)
+           Atom imagevisible(v12, #o3, #o4, v19)
+           Atom imagerange(v12, #o3, v19)
+           Atom above(v12, #o5, v8)
+           ```
+           
+           The goal expression is `Atom new-axiom@0()`. Given these elements, the list of available action instances is:
+           
+           ```
+           ((move v12 v13 #o2 v13))
+           ((move v14 v15 #o2 v15))
+           ((drop_rock v12 v16))
+           ((drop_rock v14 v16))
+           ```
+           
+           Please provide a plan that achieves the goal from the initial state.
+
+(Thoughts: **Analyzing the Plan for `new-axiom@0()` in the `rovers` Domain**
+           
+           Okay, so I've broken down this `new-axiom@0()` goal into its components.  There are a few initial facts that are already true: being at certain configurations, being free to move in some directions, etc. Then there are some `receivedimage` predicates that need to be satisfied, and some `receivedanalysis` predicates regarding rocks and soil.
+           
+           To handle the image aspect (receiving images of objectives like `v17`, `v18`, `v19` with mode `v11`), it looks like I need to calibrate a camera, take the images, and send them to the lander. The strategy I have devised consists of calibrating with a known visible object for each image (like v17), then sending these. It is worth noting, I can use the same camera `v10` and configure the rover `v14` to take multiple images, since the calibration conditions permit, and there is no constraint that each image needs its own camera. The plan looks like:
+           
+           1.  **For each objective** (v17, v18, v19): calibrate, take image, then send the image.
+           
+           But the real snag is with the analysis. To receive an analysis, I must *first* be able to *perform* an analysis! I need to sample rocks of type `v2` and soil of type `v6`, analyze them, and then send the analysis. However, there's a serious problem: the rovers are stuck!
+           Specifically, the preconditions for sampling a rock are `above(?v, ?q, ?r)` (I need to be above a rock) and `atconf(?v, ?q)` (I need to be at the correct configuration). The `above` facts all point to `#o5` as the configuration, but my available move actions only allow me to stay put or move in a self-loop. The configurations of my rovers v12, v14 do not allow them to get to the correct position. There's no way to reach the configuration required to sample the rock.
+           
+           This means that parts of the goal relating to received analysis will always be false. No rocks can be sampled, and hence no analyses can be sent. The conditions for reaching the sub-goal cannot be satisfied.
+           
+           Therefore, this goal is *unachievable*.
+           
+)
+
+Model:     **Analyzing the Plan for `new-axiom@0()` in the `rovers` Domain**
+           
+           Okay, so I've broken down this `new-axiom@0()` goal into its components.  There are a few initial facts that are already true: being at certain configurations, being free to move in some directions, etc. Then there are some `receivedimage` predicates that need to be satisfied, and some `receivedanalysis` predicates regarding rocks and soil.
+           
+           To handle the image aspect (receiving images of objectives like `v17`, `v18`, `v19` with mode `v11`), it looks like I need to calibrate a camera, take the images, and send them to the lander. The strategy I have devised consists of calibrating with a known visible object for each image (like v17), then sending these. It is worth noting, I can use the same camera `v10` and configure the rover `v14` to take multiple images, since the calibration conditions permit, and there is no constraint that each image needs its own camera. The plan looks like:
+           
+           1.  **For each objective** (v17, v18, v19): calibrate, take image, then send the image.
+           
+           But the real snag is with the analysis. To receive an analysis, I must *first* be able to *perform* an analysis! I need to sample rocks of type `v2` and soil of type `v6`, analyze them, and then send the analysis. However, there's a serious problem: the rovers are stuck!
+           Specifically, the preconditions for sampling a rock are `above(?v, ?q, ?r)` (I need to be above a rock) and `atconf(?v, ?q)` (I need to be at the correct configuration). The `above` facts all point to `#o5` as the configuration, but my available move actions only allow me to stay put or move in a self-loop. The configurations of my rovers v12, v14 do not allow them to get to the correct position. There's no way to reach the configuration required to sample the rock.
+           
+           This means that parts of the goal relating to received analysis will always be false. No rocks can be sampled, and hence no analyses can be sent. The conditions for reaching the sub-goal cannot be satisfied.
+           
+           Therefore, this goal is *unachievable*.
+           
+

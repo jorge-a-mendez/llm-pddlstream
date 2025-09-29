@@ -1,0 +1,136 @@
+User:      Here is a list of objects present in this scene for this task: 
+           
+           ```
+           #o0: object
+           #o1: object
+           #o2: object
+           #o3: object
+           #o4: object
+           @sink: object
+           @stove: object
+           v10: object
+           v11: object
+           v12: object
+           v13: object
+           v14: object
+           v15: object
+           v16: object
+           v17: object
+           v18: object
+           v19: object
+           v20: object
+           v21: object
+           v22: object
+           v23: object
+           v3: object
+           v4: object
+           v6: object
+           v7: object
+           v9: object
+           ```
+           
+           The initial state is given by the following facts: 
+           
+           ```
+           Atom canmove()
+           Atom bconf(v3)
+           Atom atbconf(v3)
+           Atom arm(v4)
+           Atom handempty(v4)
+           Atom controllable(v4)
+           Atom arm(v6)
+           Atom aconf(v6, v7)
+           Atom handempty(v6)
+           Atom ataconf(v6, v7)
+           Atom graspable(v12)
+           Atom pose(v12, v13)
+           Atom atpose(v12, v13)
+           Atom stackable(v12, v10)
+           Atom supported(v12, v13, v14)
+           Atom graspable(v15)
+           Atom pose(v15, v16)
+           Atom atpose(v15, v16)
+           Atom stackable(v15, v10)
+           Atom supported(v15, v16, v11)
+           Atom type(v12, v17)
+           Atom stackable(v12, v18)
+           Atom btraj(#o0)
+           Atom basemotion(v3, #o0, v3)
+           Atom grasp(v12, #o1)
+           Atom pose(v12, #o2)
+           Atom supported(v12, #o2, v18)
+           Atom pose(v15, #o2)
+           Atom supported(v15, #o2, v10)
+           Atom grasp(v15, #o1)
+           Atom supported(v12, #o2, v10)
+           Atom bconf(#o3)
+           Atom atraj(#o4)
+           Atom kin(v4, v12, v13, #o1, #o3, #o4)
+           Atom kin(v4, v12, #o2, #o1, #o3, #o4)
+           Atom kin(v4, v15, v16, #o1, #o3, #o4)
+           Atom kin(v4, v15, #o2, #o1, #o3, #o4)
+           Atom basemotion(#o3, #o0, v3)
+           Atom basemotion(v3, #o0, #o3)
+           Atom basemotion(#o3, #o0, #o3)
+           ```
+           
+           The goal expression is `Atom new-axiom@0()`. Given these elements, the list of available action instances is:
+           
+           ```
+           ((move_base #o3 #o3 #o0))
+           ((move_base #o3 v3 #o0))
+           ((move_base v3 #o3 #o0))
+           ((move_base v3 v3 #o0))
+           ((pick v4 v12 #o2 #o1 #o3 #o4))
+           ((place v4 v12 #o2 #o1 #o3 #o4))
+           ((pick v4 v12 v13 #o1 #o3 #o4))
+           ((place v4 v12 v13 #o1 #o3 #o4))
+           ((pick v4 v15 #o2 #o1 #o3 #o4))
+           ((place v4 v15 #o2 #o1 #o3 #o4))
+           ((pick v4 v15 v16 #o1 #o3 #o4))
+           ((place v4 v15 v16 #o1 #o3 #o4))
+           ```
+           
+           Please provide a plan that achieves the goal from the initial state.
+
+Model:     The scene contains several objects, including `v12` and `v15`, which are described as `graspable` and `stackable`. They are currently at `v13` and `v16` respectively. The robot has two arms, `v4` and `v6`. Arm `v4` is controllable. The goal is `new-axiom@0()`, which expands to `on(?green, v18)` and `type(?green, v17)`.
+           
+           Looking at the initial state, we have `type(v12, v17)`. This means `v12` can be the `?green` object in the axiom. The goal then becomes to get `v12` onto `v18`.
+           From the initial state, we have `atpose(v12, v13)` and `supported(v12, v13, v14)`. This means `v12` is currently on `v14`. We need to move `v12` to `v18`.
+           
+           The available actions include `pick` and `place`. We can pick `v12` from its current pose `v13` and place it onto a pose `o2` supported by `v18`.
+           
+           1. **Pick v12:** The action `(pick v4 v12 v13 #o1 #o3 #o4)` can be used to pick `v12` from `v13` using arm `v4`.
+              - Preconditions check:
+                - `kin(v4, v12, v13, #o1, #o3, #o4)`: True (from initial state)
+                - `atpose(v12, v13)`: True (from initial state)
+                - `handempty(v4)`: True (from initial state)
+                - `atbconf(#o3)`: This is not true. Initial `atbconf` is `v3`. We need `atbconf(#o3)`. We also have `basemotion(v3, #o0, #o3)` and `basemotion(#o3, #o0, v3)` and `basemotion(#o3, #o0, #o3)`. The `move_base` action allows `(move_base v3 #o3 #o0)`. So we first need to move the base.
+           
+           2. **Move Base:** `(move_base v3 #o3 #o0)`
+              - Preconditions check:
+                - `basemotion(v3, #o0, #o3)`: True (from initial state)
+                - `atbconf(v3)`: True (from initial state)
+                - `canmove()`: True (from initial state)
+              - Effects: `atbconf(#o3)` becomes true.
+           
+           3. **Pick v12 (again):** Now that `atbconf(#o3)` is true, we can try `(pick v4 v12 v13 #o1 #o3 #o4)`.
+              - Effects: `atgrasp(v4, v12, #o1)` becomes true, `atpose(v12, v13)` becomes false, `handempty(v4)` becomes false, `canmove()` becomes true.
+           
+           4. **Place v12:** We need to place `v12` onto `v18`. The action `(place v4 v12 #o2 #o1 #o3 #o4)` can be used. This action places `v12` at `o2` using arm `v4`. From the initial state, we know `supported(v12, #o2, v18)`. This satisfies the condition for `v12` to be on `v18`.
+              - Preconditions check:
+                - `kin(v4, v12, #o2, #o1, #o3, #o4)`: True (from initial state)
+                - `atgrasp(v4, v12, #o1)`: True (from previous pick action)
+                - `atbconf(#o3)`: True (from base move action)
+                - `unsafepose(v12, #o2)`: Negated, so we need `~unsafepose(v12, #o2)`.
+                - `unsafeapproach(v12, #o2, #o1)`: Negated, so we need `~unsafeapproach(v12, #o2, #o1)`.
+                - `unsafeatraj(#o4)`: Negated, so we need `~unsafeatraj(#o4)`.
+                These unsafe conditions are assumed to be false unless stated explicitly.
+              - Effects: `atpose(v12, #o2)` becomes true, `handempty(v4)` becomes true, `canmove()` becomes true, `atgrasp(v4, v12, #o1)` becomes false.
+              - After this action, `atpose(v12, #o2)` and `supported(v12, #o2, v18)` are true. This satisfies `on(v12, v18)`. Since `type(v12, v17)` is also true, the goal `new-axiom@0()` is achieved.
+           
+           --Plan--:
+           (move_base v3 #o3 #o0)
+           (pick v4 v12 v13 #o1 #o3 #o4)
+           (place v4 v12 #o2 #o1 #o3 #o4)
+

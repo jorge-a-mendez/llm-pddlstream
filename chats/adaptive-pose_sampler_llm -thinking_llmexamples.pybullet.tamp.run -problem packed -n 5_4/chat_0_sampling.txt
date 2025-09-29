@@ -1,0 +1,323 @@
+User:      New request:
+           
+           Surfaces ((lower_x, lower_y), (upper_x, upper_y)):
+           
+           ```
+           0: ((-0.135, -0.135), (0.135, 0.135))
+           ```
+           
+           Object extents (size_x, size_y): `((ID: 5) -- 0.0754788583991729, 0.07547885839917295)`.
+           
+           Please provide a valid placement for the object on one of the surfaces.
+
+(Thoughts: **Summary of My Strategy for Generating 50 Stable Placements**
+           
+           My primary goal is to determine 50 distinct and stable positions for an object on a given surface. The surface is a square, and the object is nearly square.  Stability means the object's axis-aligned bounding box (AABB) when placed must remain completely within the surface's AABB.  Given the surface's geometry (a square) and the object's dimensions, there are a multitude of potential placements.
+           
+           To generate these 50 placements, I'll leverage the geometric relationship between the object and the surface, and the effect of rotation on the object's AABB.  I'll begin by considering the object's shape and how it changes with rotation. Since the object is almost square, I can calculate its effective width and height when rotated. Because it is nearly a square, the maximum AABB dimensions occur at pi/4, and the minimum AABB dimensions occur at multiples of pi/2.  I will then select several specific angles for rotation, evenly spaced between 0 and pi/2 to ensure a diverse set of placements that will include minimum and maximum AABB sizes.
+           
+           For each selected rotation angle, I will determine the valid range of center coordinates (x,y) for the object's placement. This calculation involves considering the object's rotated size, and the surface boundaries. Specifically, given a fixed rotation angle, I calculate the half width of the rotated AABB. Then, knowing the surface boundaries, I can determine the valid range of center coordinates, by ensuring the object's AABB stays within these bounds.  To populate the valid center range, I will select points at the corners of this range, at the center, and on the mid-points along each edge. This is done to maximize diversity within a given rotation angle.
+           
+           Finally, because I have 9 angles from which to pick 6 points for each, I will easily exceed 50 placements.  Once the placements are generated, they will be trimmed to exactly 50.  By combining a systematic exploration of angles and placement positions within the constraints of the surface's geometry, I am confident I can produce a set of 50 stable and distinct object placements.
+           
+)
+
+Model:     **Summary of My Strategy for Generating 50 Stable Placements**
+           
+           My primary goal is to determine 50 distinct and stable positions for an object on a given surface. The surface is a square, and the object is nearly square.  Stability means the object's axis-aligned bounding box (AABB) when placed must remain completely within the surface's AABB.  Given the surface's geometry (a square) and the object's dimensions, there are a multitude of potential placements.
+           
+           To generate these 50 placements, I'll leverage the geometric relationship between the object and the surface, and the effect of rotation on the object's AABB.  I'll begin by considering the object's shape and how it changes with rotation. Since the object is almost square, I can calculate its effective width and height when rotated. Because it is nearly a square, the maximum AABB dimensions occur at pi/4, and the minimum AABB dimensions occur at multiples of pi/2.  I will then select several specific angles for rotation, evenly spaced between 0 and pi/2 to ensure a diverse set of placements that will include minimum and maximum AABB sizes.
+           
+           For each selected rotation angle, I will determine the valid range of center coordinates (x,y) for the object's placement. This calculation involves considering the object's rotated size, and the surface boundaries. Specifically, given a fixed rotation angle, I calculate the half width of the rotated AABB. Then, knowing the surface boundaries, I can determine the valid range of center coordinates, by ensuring the object's AABB stays within these bounds.  To populate the valid center range, I will select points at the corners of this range, at the center, and on the mid-points along each edge. This is done to maximize diversity within a given rotation angle.
+           
+           Finally, because I have 9 angles from which to pick 6 points for each, I will easily exceed 50 placements.  Once the placements are generated, they will be trimmed to exactly 50.  By combining a systematic exploration of angles and placement positions within the constraints of the surface's geometry, I am confident I can produce a set of 50 stable and distinct object placements.
+           
+
+User:      The following successes were found from the previous request. These were placements that did not collide with fixed obstacles. You may use these as positive examples for future requests:
+           
+           ```
+           (ID: 5) -- 0, 0.0, -0.09726057080041355, -0.09726057080041352
+           ```
+           
+           New request:
+           
+           Surfaces ((lower_x, lower_y), (upper_x, upper_y)):
+           
+           ```
+           0: ((-0.135, -0.135), (0.135, 0.135))
+           ```
+           
+           Object extents (size_x, size_y): `((ID: 8) -- 0.09742829891620886, 0.09742829891620884)`.
+           
+           Please provide a valid placement for the object on one of the surfaces.
+
+(Thoughts: **Initial Assessment and Problem Decomposition**
+           
+           Alright, let's break this down. We've got a successful placement of object ID 5 and now need to position object ID 8 on the same surface without any collisions. The challenge is that object 8 is a near-square shape, and its orientation is a variable to be optimized for placement. Object 5 is also a near-square object which is at `theta=0`, which simplifies things. The key here is to efficiently generate valid placements for object 8, ensuring they fit within the surface boundaries and don't overlap object 5.
+           
+           **Collision Avoidance Strategy**
+           
+           My approach will be a systematic one, focusing on AABB (Axis-Aligned Bounding Box) collision checks. Since object 5's position is fixed and simple, I'll calculate its AABB. Then, for each potential placement of object 8 (defined by its angle `theta` and center coordinates `(x, y)`), I'll calculate its rotated AABB. I'll utilize the bounding-box ranges and implement a collision check based on the standard non-overlap conditions for AABBs.
+           
+           **Placement Generation and Optimization**
+           
+           For placement generation, I'll start by determining the valid range for the center of object 8 on the surface for each orientation. This will be determined by the surface dimensions and object 8's dimensions at a specific angle. I will use the minimum and maximum of the surface. From there, I'll generate a grid of candidate placements within those ranges, using a 3x3 grid (min, mid, max) for each dimension. Finally, the collision check will be applied for each point, and valid placements will be stored. To get the required 50 placements, I'll iterate through angles and grid points. This will guarantee a diverse set.
+           
+           **Detailed Implementation**
+           
+           1.  **AABB Calculations**: Calculate object 5's AABB using its dimensions and placement coordinates. Also, create a function to determine the `W` and `H` of object 8.
+           2.  **Valid Center Range**: Iterate through possible angles (0 to pi/2, with 9 steps). For each angle, calculate the valid range for the center (x, y) coordinates of object 8 based on that angle. Generate a center range for `x` and `y`.
+           3.  **Grid Placement**: Using the center coordinates, I'll create the 3x3 grid using min, center, and max for each range, or generate fewer center coordinates if ranges are small, and handle edge cases where there may not be valid positions in x or y.
+           4.  **Collision Checks**: Calculate the rotated AABB for each candidate placement and check for overlaps with object 5's AABB. Use the non-overlap conditions:
+           
+               `obj8_max_x <= obj5_min_x` OR `obj8_min_x >= obj5_max_x` OR `obj8_max_y <= obj5_min_y` OR `obj8_min_y >= obj5_max_y`
+           5.  **Placement Generation**: Store the valid (non-colliding) placements.
+           
+           **Iteration and Termination**
+           
+           I'll iterate through all of the grid points generated for each angle, and store valid placements. Since there are 9 angles, and I will be testing for the 3x3 grid in x and the 3x3 grid in y, there will be 81 points in total to test (after checking edge cases). I will break the loop early if 50 placements are found.
+           
+           This approach will effectively generate a set of collision-free placements for object 8, while also providing information on object 5.
+           
+)
+
+Model:     **Initial Assessment and Problem Decomposition**
+           
+           Alright, let's break this down. We've got a successful placement of object ID 5 and now need to position object ID 8 on the same surface without any collisions. The challenge is that object 8 is a near-square shape, and its orientation is a variable to be optimized for placement. Object 5 is also a near-square object which is at `theta=0`, which simplifies things. The key here is to efficiently generate valid placements for object 8, ensuring they fit within the surface boundaries and don't overlap object 5.
+           
+           **Collision Avoidance Strategy**
+           
+           My approach will be a systematic one, focusing on AABB (Axis-Aligned Bounding Box) collision checks. Since object 5's position is fixed and simple, I'll calculate its AABB. Then, for each potential placement of object 8 (defined by its angle `theta` and center coordinates `(x, y)`), I'll calculate its rotated AABB. I'll utilize the bounding-box ranges and implement a collision check based on the standard non-overlap conditions for AABBs.
+           
+           **Placement Generation and Optimization**
+           
+           For placement generation, I'll start by determining the valid range for the center of object 8 on the surface for each orientation. This will be determined by the surface dimensions and object 8's dimensions at a specific angle. I will use the minimum and maximum of the surface. From there, I'll generate a grid of candidate placements within those ranges, using a 3x3 grid (min, mid, max) for each dimension. Finally, the collision check will be applied for each point, and valid placements will be stored. To get the required 50 placements, I'll iterate through angles and grid points. This will guarantee a diverse set.
+           
+           **Detailed Implementation**
+           
+           1.  **AABB Calculations**: Calculate object 5's AABB using its dimensions and placement coordinates. Also, create a function to determine the `W` and `H` of object 8.
+           2.  **Valid Center Range**: Iterate through possible angles (0 to pi/2, with 9 steps). For each angle, calculate the valid range for the center (x, y) coordinates of object 8 based on that angle. Generate a center range for `x` and `y`.
+           3.  **Grid Placement**: Using the center coordinates, I'll create the 3x3 grid using min, center, and max for each range, or generate fewer center coordinates if ranges are small, and handle edge cases where there may not be valid positions in x or y.
+           4.  **Collision Checks**: Calculate the rotated AABB for each candidate placement and check for overlaps with object 5's AABB. Use the non-overlap conditions:
+           
+               `obj8_max_x <= obj5_min_x` OR `obj8_min_x >= obj5_max_x` OR `obj8_max_y <= obj5_min_y` OR `obj8_min_y >= obj5_max_y`
+           5.  **Placement Generation**: Store the valid (non-colliding) placements.
+           
+           **Iteration and Termination**
+           
+           I'll iterate through all of the grid points generated for each angle, and store valid placements. Since there are 9 angles, and I will be testing for the 3x3 grid in x and the 3x3 grid in y, there will be 81 points in total to test (after checking edge cases). I will break the loop early if 50 placements are found.
+           
+           This approach will effectively generate a set of collision-free placements for object 8, while also providing information on object 5.
+           
+
+User:      The following successes were found from the previous request. These were placements that did not collide with fixed obstacles. You may use these as positive examples for future requests:
+           
+           ```
+           (ID: 5) -- 0, 0.0, -0.09726057080041355, -0.09726057080041352
+           (ID: 8) -- 0, 0.0, 0.0, -0.08628585054189558
+           ```
+           
+           New request:
+           
+           Surfaces ((lower_x, lower_y), (upper_x, upper_y)):
+           
+           ```
+           0: ((-0.135, -0.135), (0.135, 0.135))
+           ```
+           
+           Object extents (size_x, size_y): `((ID: 4) -- 0.072061749450272, 0.072061749450272)`.
+           
+           Please provide a valid placement for the object on one of the surfaces.
+
+(Thoughts: **Summary of My Strategy for Object Placement**
+           
+           Okay, so I'm tasked with finding 50 stable positions for this new object (ID: 4) on surface 0.  I've got to dodge two other objects already placed there: object 5 and object 8.  I'm dealing with a square-shaped object here, so that simplifies things *slightly*.
+           
+           My approach is fairly straightforward:
+           
+           1.  **Angle Iteration:** I'll be cycling through a bunch of different rotation angles (theta), starting from zero all the way to pi/2.
+           
+           2.  **Effective Size Calculation:** For each angle, I need to figure out the maximum bounding rectangle (effectively the "footprint") of the object. Since my object is a square, the width and height are equal, but will change with rotation.
+           
+           3.  **Feasible Center Region:**  Taking into account the surface boundaries and my rotated shape's dimensions, I'll calculate the valid region where the *center* of the object can be placed without going off the edge.
+           
+           4.  **Position Generation:** Within that safe center region, I'll create a grid of potential (x, y) coordinates.  I am using a fairly dense grid of 5 points for each axis to ensure proper coverage. This involves generating coordinates for both x and y.
+           
+           5.  **Collision Checks:** For each candidate position (and its corresponding rotation), I'll calculate the object's Axis-Aligned Bounding Box (AABB).  Then, I'll check if this AABB collides with the AABBs of objects 5 and 8.  I've double-checked my collision logic, and I believe it is correct. If no collisions, it's a valid placement!
+           
+           I've got the calculations down to determine these safe zones and create the appropriate positions in code.  If I don't get 50 after this initial attempt with a 5x5 grid, I will increase the density or try more angles.
+           
+           *   **A Detailed Look at the Calculations:** I've carefully calculated the dimensions and half-dimensions of the object, as well as the ranges for the center point. I know I have to watch out for Object 5, in the bottom-left, and Object 8 in the bottom-middle. I've also implemented the get\_aabb function to compute and is\_collision function for the checks. I am confident that these should handle various orientations.
+           
+           This is my strategy and with these steps I should find the needed 50 valid placements.
+           
+)
+
+Model:     **Summary of My Strategy for Object Placement**
+           
+           Okay, so I'm tasked with finding 50 stable positions for this new object (ID: 4) on surface 0.  I've got to dodge two other objects already placed there: object 5 and object 8.  I'm dealing with a square-shaped object here, so that simplifies things *slightly*.
+           
+           My approach is fairly straightforward:
+           
+           1.  **Angle Iteration:** I'll be cycling through a bunch of different rotation angles (theta), starting from zero all the way to pi/2.
+           
+           2.  **Effective Size Calculation:** For each angle, I need to figure out the maximum bounding rectangle (effectively the "footprint") of the object. Since my object is a square, the width and height are equal, but will change with rotation.
+           
+           3.  **Feasible Center Region:**  Taking into account the surface boundaries and my rotated shape's dimensions, I'll calculate the valid region where the *center* of the object can be placed without going off the edge.
+           
+           4.  **Position Generation:** Within that safe center region, I'll create a grid of potential (x, y) coordinates.  I am using a fairly dense grid of 5 points for each axis to ensure proper coverage. This involves generating coordinates for both x and y.
+           
+           5.  **Collision Checks:** For each candidate position (and its corresponding rotation), I'll calculate the object's Axis-Aligned Bounding Box (AABB).  Then, I'll check if this AABB collides with the AABBs of objects 5 and 8.  I've double-checked my collision logic, and I believe it is correct. If no collisions, it's a valid placement!
+           
+           I've got the calculations down to determine these safe zones and create the appropriate positions in code.  If I don't get 50 after this initial attempt with a 5x5 grid, I will increase the density or try more angles.
+           
+           *   **A Detailed Look at the Calculations:** I've carefully calculated the dimensions and half-dimensions of the object, as well as the ranges for the center point. I know I have to watch out for Object 5, in the bottom-left, and Object 8 in the bottom-middle. I've also implemented the get\_aabb function to compute and is\_collision function for the checks. I am confident that these should handle various orientations.
+           
+           This is my strategy and with these steps I should find the needed 50 valid placements.
+           
+
+User:      The following successes were found from the previous request. These were placements that did not collide with fixed obstacles. You may use these as positive examples for future requests:
+           
+           ```
+           (ID: 5) -- 0, 0.0, -0.09726057080041355, -0.09726057080041352
+           (ID: 8) -- 0, 0.0, 0.0, -0.08628585054189558
+           (ID: 4) -- 0, 0.0, -0.098969125274864, 0.098969125274864
+           ```
+           
+           New request:
+           
+           Surfaces ((lower_x, lower_y), (upper_x, upper_y)):
+           
+           ```
+           0: ((-0.135, -0.135), (0.135, 0.135))
+           ```
+           
+           Object extents (size_x, size_y): `((ID: 7) -- 0.08422139777430193, 0.08422139777430193)`.
+           
+           Please provide a valid placement for the object on one of the surfaces.
+
+(Thoughts: **Strategic Placement of Object 7: A Systematic Approach**
+           
+           I need to find 50 stable, non-overlapping positions for a new square object (Object 7) on a 2D surface (Surface 0). Surface 0 is a square region defined by its corners. I'll need to check for overlaps with three other objects already placed on Surface 0: Object 5, Object 8, and Object 4. These other objects also are placed with zero rotation.
+           
+           My strategy is as follows:
+           
+           1.  **Rotation Exploration:** I'll begin by analyzing the best rotation to place the object. The dimensions of the new object is a square of `0.08422` by `0.08422` .
+               To accomplish this, I'll generate the rotations in equal intervals from 0 to π/2 to check their performance.
+           
+           2.  **Valid Position Calculation:** At each rotation, I'll determine the possible valid (x, y) coordinates for Object 7's center within Surface 0. Because I have a set number of rotations, I will skip it if no solutions are available for the new object.
+           
+           3.  **Collision Avoidance:** For each potential placement, I'll generate a grid of potential locations, and check whether placing the object with any of those center coordinates causes it to overlap with the bounding boxes of Object 5, Object 8, or Object 4.
+           
+           4.  **Placement Validation:** The coordinates that don't overlap with any object are then added to a list of stable placements.
+           
+           5.  **Placement Completion:** I'll stop when 50 unique placements are found or I've exhausted all possible placement configurations.
+           
+           I already calculated the minimum/maximum extents for all these previous objects using their center and dimensions. The placement location will be in the center, so each rotation will create a different bounding box based on the equation for a square, as the sin/cos function scales and shifts with the angle.
+           To avoid overlap with the current objects, I check that the edges of object 7's axis-aligned bounding box don't cross any of their box edges, using the well-known axis-aligned bounding box collision technique.
+           
+           In my initial manual verification, I found that the space to place is highly dependent on the position of the existing objects, so I should be able to find solutions for this placement.
+           
+)
+
+Model:     **Strategic Placement of Object 7: A Systematic Approach**
+           
+           I need to find 50 stable, non-overlapping positions for a new square object (Object 7) on a 2D surface (Surface 0). Surface 0 is a square region defined by its corners. I'll need to check for overlaps with three other objects already placed on Surface 0: Object 5, Object 8, and Object 4. These other objects also are placed with zero rotation.
+           
+           My strategy is as follows:
+           
+           1.  **Rotation Exploration:** I'll begin by analyzing the best rotation to place the object. The dimensions of the new object is a square of `0.08422` by `0.08422` .
+               To accomplish this, I'll generate the rotations in equal intervals from 0 to π/2 to check their performance.
+           
+           2.  **Valid Position Calculation:** At each rotation, I'll determine the possible valid (x, y) coordinates for Object 7's center within Surface 0. Because I have a set number of rotations, I will skip it if no solutions are available for the new object.
+           
+           3.  **Collision Avoidance:** For each potential placement, I'll generate a grid of potential locations, and check whether placing the object with any of those center coordinates causes it to overlap with the bounding boxes of Object 5, Object 8, or Object 4.
+           
+           4.  **Placement Validation:** The coordinates that don't overlap with any object are then added to a list of stable placements.
+           
+           5.  **Placement Completion:** I'll stop when 50 unique placements are found or I've exhausted all possible placement configurations.
+           
+           I already calculated the minimum/maximum extents for all these previous objects using their center and dimensions. The placement location will be in the center, so each rotation will create a different bounding box based on the equation for a square, as the sin/cos function scales and shifts with the angle.
+           To avoid overlap with the current objects, I check that the edges of object 7's axis-aligned bounding box don't cross any of their box edges, using the well-known axis-aligned bounding box collision technique.
+           
+           In my initial manual verification, I found that the space to place is highly dependent on the position of the existing objects, so I should be able to find solutions for this placement.
+           
+
+User:      The following successes were found from the previous request. These were placements that did not collide with fixed obstacles. You may use these as positive examples for future requests:
+           
+           ```
+           (ID: 5) -- 0, 0.0, -0.09726057080041355, -0.09726057080041352
+           (ID: 8) -- 0, 0.0, 0.0, -0.08628585054189558
+           (ID: 4) -- 0, 0.0, -0.098969125274864, 0.098969125274864
+           (ID: 7) -- 0, 0.0, 0.09288930111284903, 0.09288930111284903
+           ```
+           
+           New request:
+           
+           Surfaces ((lower_x, lower_y), (upper_x, upper_y)):
+           
+           ```
+           0: ((-0.135, -0.135), (0.135, 0.135))
+           ```
+           
+           Object extents (size_x, size_y): `((ID: 6) -- 0.0788922648571688, 0.07889226485716883)`.
+           
+           Please provide a valid placement for the object on one of the surfaces.
+
+(Thoughts: **Planning the Placement of a New Object**
+           
+           Okay, so I need to find 50 stable positions for a new, almost-square object (ID 6) with dimensions roughly 0.08 x 0.08 on surface 0, which is a square bounded by (-0.135, -0.135) and (0.135, 0.135).  The major challenge here is avoiding collisions with the four objects already placed on the surface (IDs 5, 8, 4, and 7).
+           
+           My approach is fairly standard, but I'll optimize it for this specific problem.  First, I'll calculate the AABB (Axis-Aligned Bounding Box) for each existing object. This will give me a simple, rectangular region that fully encompasses each object.  Using these, I can rapidly check for overlaps.
+           
+           Here's my calculated AABB summary:
+           
+           *   **Object 5:**  [-0.135, -0.0595] x [-0.135, -0.0595] (Bottom-Left)
+           *   **Object 8:**  [-0.0487, 0.0487] x [-0.135, -0.0376] (Bottom-Middle)
+           *   **Object 4:**  [-0.135, -0.0629] x [0.0629, 0.135] (Top-Left)
+           *   **Object 7:**  [0.0508, 0.135] x [0.0508, 0.135] (Top-Right)
+           
+           Now, for placing the new object, I need to consider all possible rotations of this object. I'll iterate through a set of angles (theta) from 0 to pi/2 in increments of pi/16. This should cover the full range of possible orientations.
+           
+           For each angle:
+           
+           1.  I'll calculate the new object's width (W) and height (H) based on that rotation angle. Since the object is nearly square, the values are similar.
+           2.  I will calculate the AABB of the rotated new object for that angle.
+           3.  Given the surface's boundary and rotated bounding box I'll define a valid area within which the object may be placed.
+           4.  Within the valid area, I will generate a grid of potential (x, y) center positions.  I will test a 5x5 grid of centers to create diversity.
+           5.  For each center, I'll calculate the object's final AABB given it's rotated theta, and center point, then check for a collision with all the AABBs of the existing objects.
+           6.  If no collision is detected, I add the placement to a set of candidates.
+           7.  The loop will iterate until 50 unique placements are found.
+           
+           I know my code will handle the low-level AABB calculations. The main thing is to have a good strategy of iterating rotation then iterating points within valid space while avoiding collisions with the existing, defined objects.
+           
+)
+
+Model:     **Planning the Placement of a New Object**
+           
+           Okay, so I need to find 50 stable positions for a new, almost-square object (ID 6) with dimensions roughly 0.08 x 0.08 on surface 0, which is a square bounded by (-0.135, -0.135) and (0.135, 0.135).  The major challenge here is avoiding collisions with the four objects already placed on the surface (IDs 5, 8, 4, and 7).
+           
+           My approach is fairly standard, but I'll optimize it for this specific problem.  First, I'll calculate the AABB (Axis-Aligned Bounding Box) for each existing object. This will give me a simple, rectangular region that fully encompasses each object.  Using these, I can rapidly check for overlaps.
+           
+           Here's my calculated AABB summary:
+           
+           *   **Object 5:**  [-0.135, -0.0595] x [-0.135, -0.0595] (Bottom-Left)
+           *   **Object 8:**  [-0.0487, 0.0487] x [-0.135, -0.0376] (Bottom-Middle)
+           *   **Object 4:**  [-0.135, -0.0629] x [0.0629, 0.135] (Top-Left)
+           *   **Object 7:**  [0.0508, 0.135] x [0.0508, 0.135] (Top-Right)
+           
+           Now, for placing the new object, I need to consider all possible rotations of this object. I'll iterate through a set of angles (theta) from 0 to pi/2 in increments of pi/16. This should cover the full range of possible orientations.
+           
+           For each angle:
+           
+           1.  I'll calculate the new object's width (W) and height (H) based on that rotation angle. Since the object is nearly square, the values are similar.
+           2.  I will calculate the AABB of the rotated new object for that angle.
+           3.  Given the surface's boundary and rotated bounding box I'll define a valid area within which the object may be placed.
+           4.  Within the valid area, I will generate a grid of potential (x, y) center positions.  I will test a 5x5 grid of centers to create diversity.
+           5.  For each center, I'll calculate the object's final AABB given it's rotated theta, and center point, then check for a collision with all the AABBs of the existing objects.
+           6.  If no collision is detected, I add the placement to a set of candidates.
+           7.  The loop will iterate until 50 unique placements are found.
+           
+           I know my code will handle the low-level AABB calculations. The main thing is to have a good strategy of iterating rotation then iterating points within valid space while avoiding collisions with the existing, defined objects.
+           
+

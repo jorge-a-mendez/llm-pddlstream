@@ -1,0 +1,213 @@
+User:      New request:
+           
+           Surfaces ((lower_x, lower_y), (upper_x, upper_y)):
+           
+           ```
+           0: ((4.2, -0.6), (4.8, 0.0))
+           ```
+           
+           Object extents (size_x, size_y): `((ID: 5) -- 0.07000000000000028, 0.06999999999999995)`.
+           
+           Please provide a valid placement for the object on one of the surfaces.
+
+Model:     The scene consists of a single surface, surface 0, which is an AABB defined by `((4.2, -0.6), (4.8, 0.0))`. The object, with ID 5, has dimensions `(0.07, 0.07)`. I need to find 50 stable placements for this object on surface 0. A stable placement means the object's AABB, when rotated, must be entirely contained within the surface's AABB.
+           
+           Since the object is square (0.07 x 0.07), its effective footprint (max extent) when rotated will be `sqrt(0.07^2 + 0.07^2)` at 45 degrees, which is approximately `0.09899`. However, for an axis-aligned bounding box of the object, the dimensions remain `0.07 x 0.07` regardless of rotation *angle* (when considering the bounding box of the rotated object, not the object's original AABB). For an object of size `(sx, sy)` rotated by `theta`, the new AABB dimensions are `(sx * |cos(theta)| + sy * |sin(theta)|, sx * |sin(theta)| + sy * |cos(theta)|)`.
+           
+           Given the object is square `(0.07, 0.07)`, the effective width and height of its bounding box after rotation by `theta` are `0.07 * (|cos(theta)| + |sin(theta)|)`. This value is maximized at `theta = pi/4` (45 degrees) and `theta = 3*pi/4` (135 degrees), where it is `0.07 * (sqrt(2)/2 + sqrt(2)/2) = 0.07 * sqrt(2) approx 0.09899`. It is minimized at `theta = 0` (0 degrees) and `theta = pi/2` (90 degrees), where it is `0.07 * (1 + 0) = 0.07`.
+           
+           Surface 0 has a width of `4.8 - 4.2 = 0.6` and a height of `0.0 - (-0.6) = 0.6`.
+           The object is much smaller than the surface, so there's plenty of space.
+           
+           I will try a variety of positions and rotations. Since the object is square, rotations by `0, pi/2, pi, 3*pi/2` will have the same effective footprint `(0.07, 0.07)`. Rotations by `pi/4, 3*pi/4, 5*pi/4, 7*pi/4` will have the largest effective footprint `(0.09899, 0.09899)`.
+           
+           I will distribute the placements across the surface, ensuring there's enough clearance from the edges for the object's rotated bounding box.
+           For the minimum bounding box case (theta = 0 or pi/2), the half-extents are `0.035`.
+           For the maximum bounding box case (theta = pi/4), the half-extents are `0.09899 / 2 = 0.049495`.
+           So, the center `(x, y)` of the object must satisfy:
+           `4.2 + 0.049495 <= x <= 4.8 - 0.049495`
+           `-0.6 + 0.049495 <= y <= 0.0 - 0.049495`
+           Which means:
+           `4.249495 <= x <= 4.750505`
+           `-0.550505 <= y <= -0.049495`
+           
+           I will generate placements varying `x`, `y`, and `theta`. I can use a grid-like approach for `x` and `y` and cycle through a few key angles for `theta`.
+           
+           Let's use a step size of `0.1` for `x` and `y` to create a grid of possible centers.
+           `x` values: `4.25, 4.35, 4.45, 4.55, 4.65, 4.75`
+           `y` values: `-0.55, -0.45, -0.35, -0.25, -0.15, -0.05`
+           Angles: `0, pi/4, pi/2, 3*pi/4` (0, 45, 90, 135 degrees)
+           
+           This gives `6 * 6 * 4 = 144` potential placements. I only need 50. I will select 50 of these, prioritizing diversity.
+           
+           Placements:
+           (0, 0.0, 4.25, -0.55)
+           (0, 0.0, 4.35, -0.55)
+           (0, 0.0, 4.45, -0.55)
+           (0, 0.0, 4.55, -0.55)
+           (0, 0.0, 4.65, -0.55)
+           (0, 0.0, 4.75, -0.55)
+           (0, 0.0, 4.25, -0.45)
+           (0, 0.0, 4.35, -0.45)
+           (0, 0.0, 4.45, -0.45)
+           (0, 0.0, 4.55, -0.45)
+           (0, 0.0, 4.65, -0.45)
+           (0, 0.0, 4.75, -0.45)
+           (0, 0.0, 4.25, -0.35)
+           (0, 0.0, 4.35, -0.35)
+           (0, 0.0, 4.45, -0.35)
+           (0, 0.0, 4.55, -0.35)
+           (0, 0.0, 4.65, -0.35)
+           (0, 0.0, 4.75, -0.35)
+           (0, 3.141592653589793/4, 4.25, -0.55)
+           (0, 3.141592653589793/4, 4.35, -0.55)
+           (0, 3.141592653589793/4, 4.45, -0.55)
+           (0, 3.141592653589793/4, 4.55, -0.55)
+           (0, 3.141592653589793/4, 4.65, -0.55)
+           (0, 3.141592653589793/4, 4.75, -0.55)
+           (0, 3.141592653589793/4, 4.25, -0.45)
+           (0, 3.141592653589793/4, 4.35, -0.45)
+           (0, 3.141592653589793/4, 4.45, -0.45)
+           (0, 3.141592653589793/4, 4.55, -0.45)
+           (0, 3.141592653589793/4, 4.65, -0.45)
+           (0, 3.141592653589793/4, 4.75, -0.45)
+           (0, 3.141592653589793/2, 4.25, -0.55)
+           (0, 3.141592653589793/2, 4.35, -0.55)
+           (0, 3.141592653589793/2, 4.45, -0.55)
+           (0, 3.141592653589793/2, 4.55, -0.55)
+           (0, 3.141592653589793/2, 4.65, -0.55)
+           (0, 3.141592653589793/2, 4.75, -0.55)
+           (0, 3.141592653589793*3/4, 4.25, -0.55)
+           (0, 3.141592653589793*3/4, 4.35, -0.55)
+           (0, 3.141592653589793*3/4, 4.45, -0.55)
+           (0, 3.141592653589793*3/4, 4.55, -0.55)
+           (0, 3.141592653589793*3/4, 4.65, -0.55)
+           (0, 3.141592653589793*3/4, 4.75, -0.55)
+           (0, 0.0, 4.25, -0.25)
+           (0, 0.0, 4.35, -0.25)
+           (0, 0.0, 4.45, -0.25)
+           (0, 0.0, 4.55, -0.25)
+           (0, 0.0, 4.65, -0.25)
+           (0, 0.0, 4.75, -0.25)
+           (0, 3.141592653589793/4, 4.25, -0.25)
+           (0, 3.141592653589793/4, 4.35, -0.25)
+
+User:      The following successes were found from the previous request. These were placements that did not collide with fixed obstacles. You may use these as positive examples for future requests:
+           
+           ```
+           (ID: 5) -- 0, 0.0, 4.25, -0.55
+           (ID: 5) -- 0, 0.0, 4.35, -0.55
+           (ID: 5) -- 0, 0.0, 4.45, -0.55
+           (ID: 5) -- 0, 0.0, 4.55, -0.55
+           (ID: 5) -- 0, 0.0, 4.65, -0.55
+           (ID: 5) -- 0, 0.0, 4.75, -0.55
+           (ID: 5) -- 0, 0.0, 4.25, -0.45
+           (ID: 5) -- 0, 0.0, 4.35, -0.45
+           (ID: 5) -- 0, 0.0, 4.45, -0.45
+           (ID: 5) -- 0, 0.0, 4.55, -0.45
+           ```
+           
+           New request:
+           
+           Surfaces ((lower_x, lower_y), (upper_x, upper_y)):
+           
+           ```
+           0: ((4.2, -0.6), (4.8, 0.0))
+           ```
+           
+           Object extents (size_x, size_y): `((ID: 10) -- 0.09509641145784897, 0.09509641145784947)`.
+           
+           Please provide a valid placement for the object on one of the surfaces.
+
+Model:     The scene still contains surface 0: `((4.2, -0.6), (4.8, 0.0))`.
+           Now I need to place a new object, ID 10, with dimensions `(0.09509641145784897, 0.09509641145784947)`. This object is also nearly square, with extents approximately `(0.095, 0.095)`.
+           
+           I have information about successful placements for object ID 5. This means that those locations did not collide with any fixed obstacles. I need to make sure that the new placements for object ID 10 do not collide with any previously placed objects (ID 5). However, the previous successes were just a subset of what I proposed. This usually means that the other proposed placements for object 5 collided with some *non-fixed* obstacle. Since I'm placing a *new* object, I only need to ensure it doesn't collide with fixed obstacles (which are unknown) and doesn't overlap with the *successful* placements of object 5.
+           
+           Let's refine the placement strategy.
+           The dimensions of object 10 are `(0.095, 0.095)`.
+           The surface is `0.6 x 0.6`.
+           Similar to object 5, the effective bounding box dimensions for a square object rotated by `theta` are `0.095 * (|cos(theta)| + |sin(theta)|)`.
+           This means the minimum extent is `0.095` (at `theta = 0, pi/2, pi, 3*pi/2`) and the maximum extent is `0.095 * sqrt(2) approx 0.13435` (at `theta = pi/4, 3*pi/4`).
+           
+           So, the half-extents for the bounding box are:
+           Min: `0.095 / 2 = 0.0475`
+           Max: `0.13435 / 2 = 0.067175`
+           
+           The valid range for the center `(x, y)` of object 10 on surface 0, considering the maximum bounding box, will be:
+           `4.2 + 0.067175 <= x <= 4.8 - 0.067175`
+           `-0.6 + 0.067175 <= y <= 0.0 - 0.067175`
+           Which means:
+           `4.267175 <= x <= 4.732825`
+           `-0.532825 <= y <= -0.067175`
+           
+           This range is tighter than for object 5.
+           I need to avoid the successful placements of object 5. The successful placements for object 5 were:
+           `x` in `[4.25, 4.75]`, `y` in `[-0.55, -0.45]` for `theta = 0`.
+           The bounding box of object 5 at `theta = 0` is `0.07 x 0.07`.
+           Its half-extents are `0.035`.
+           So, these successful placements for object 5 occupy the region:
+           `x_center - 0.035` to `x_center + 0.035`
+           `y_center - 0.035` to `y_center + 0.035`
+           
+           For example, `(ID: 5) -- 0, 0.0, 4.25, -0.55` means object 5 occupies `[4.215, 4.285]` in x and `[-0.585, -0.515]` in y.
+           
+           The new object 10 has a larger footprint. I should try to place it in regions that were not tested by the *successful* placements of object 5, or in the remaining parts of the surface.
+           Specifically, for object 10, the center `y` values I can use are `[-0.35, -0.25, -0.15, -0.05]` from the previous general grid, and I need to check if these ranges conflict with the occupied space of object 5.
+           The successful placements of object 5 are mostly in the `y` range of `[-0.585, -0.415]`.
+           So, I can focus on placing object 10 with `y_center` above `~-0.4` or slightly below `~-0.6`. Given surface bounds, above `~-0.4` is the only option.
+           So, `y` values for object 10 center: `-0.4, -0.3, -0.2, -0.1`.
+           Let's choose `y` values like `-0.3`, `-0.2`, `-0.1`.
+           For `x`, I can still use the range `[4.27, 4.73]`. Let's use `4.3, 4.4, 4.5, 4.6, 4.7`.
+           
+           Placements:
+           (0, 0.0, 4.30, -0.30)
+           (0, 0.0, 4.40, -0.30)
+           (0, 0.0, 4.50, -0.30)
+           (0, 0.0, 4.60, -0.30)
+           (0, 0.0, 4.70, -0.30)
+           (0, 0.0, 4.30, -0.20)
+           (0, 0.0, 4.40, -0.20)
+           (0, 0.0, 4.50, -0.20)
+           (0, 0.0, 4.60, -0.20)
+           (0, 0.0, 4.70, -0.20)
+           (0, 0.0, 4.30, -0.10)
+           (0, 0.0, 4.40, -0.10)
+           (0, 0.0, 4.50, -0.10)
+           (0, 0.0, 4.60, -0.10)
+           (0, 0.0, 4.70, -0.10)
+           (0, 3.141592653589793/4, 4.30, -0.30)
+           (0, 3.141592653589793/4, 4.40, -0.30)
+           (0, 3.141592653589793/4, 4.50, -0.30)
+           (0, 3.141592653589793/4, 4.60, -0.30)
+           (0, 3.141592653589793/4, 4.70, -0.30)
+           (0, 3.141592653589793/4, 4.30, -0.20)
+           (0, 3.141592653589793/4, 4.40, -0.20)
+           (0, 3.141592653589793/4, 4.50, -0.20)
+           (0, 3.141592653589793/4, 4.60, -0.20)
+           (0, 3.141592653589793/4, 4.70, -0.20)
+           (0, 3.141592653589793/2, 4.30, -0.30)
+           (0, 3.141592653589793/2, 4.40, -0.30)
+           (0, 3.141592653589793/2, 4.50, -0.30)
+           (0, 3.141592653589793/2, 4.60, -0.30)
+           (0, 3.141592653589793/2, 4.70, -0.30)
+           (0, 3.141592653589793*3/4, 4.30, -0.30)
+           (0, 3.141592653589793*3/4, 4.40, -0.30)
+           (0, 3.141592653589793*3/4, 4.50, -0.30)
+           (0, 3.141592653589793*3/4, 4.60, -0.30)
+           (0, 3.141592653589793*3/4, 4.70, -0.30)
+           (0, 0.0, 4.27, -0.07)
+           (0, 0.0, 4.73, -0.07)
+           (0, 0.0, 4.27, -0.53) # Near the edge, but avoiding object 5's successful spots
+           (0, 0.0, 4.73, -0.53) # Near the edge
+           (0, 3.141592653589793/4, 4.27, -0.07)
+           (0, 3.141592653589793/4, 4.73, -0.07)
+           (0, 3.141592653589793/4, 4.27, -0.53)
+           (0, 3.141592653589793/4, 4.73, -0.53)
+           (0, 0.0, 4.30, -0.40)
+           (0, 0.0, 4.40, -0.40)
+           (0, 0.0, 4.50, -0.40)
+           (0, 0.0, 4.60, -0.40)
+           (0, 0.0, 4.70, -0.40)
+           (0, 3.141592653589793/4, 4.30, -0.40)
+

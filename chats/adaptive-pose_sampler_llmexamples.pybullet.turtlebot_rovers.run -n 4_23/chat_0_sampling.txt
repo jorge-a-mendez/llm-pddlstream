@@ -1,0 +1,104 @@
+User:      The robot can only be placed within the following limits for (x, y, theta):
+           x: [-2.5, 2.5], y: [-2.5, 2.5], theta: [-inf, inf]
+           
+           New request:
+           
+           Target point: {target_point}. Please provide a valid placement for the robot base (x y) within the max distance 2 from the target point. 
+
+Model:     The scene is enclosed by a large square (AABB 0), with thin walls defining its outer boundaries (AABBs 1, 2, 3, 4). There's a vertical wall in the middle (AABB 5). Several smaller square obstacles are distributed, mostly in the top-right and top-left corners (AABBs 7, 8, 9, 10), and some other small, irregularly shaped obstacles are scattered throughout the scene (AABBs 6, 11-22).
+           
+           Given the target point at (0.0, 0.0), and the max range of 2, the robot's base can be anywhere within a circle of radius 2 centered at (0.0, 0.0).
+           
+           Obstacle 5 ((-0.05, -2.5), (0.05, 2.5)) is a vertical wall at x=0.0. This wall will likely occlude views from one side to the other across x=0.0 if the target is on x=0.0. Since the target is (0.0, 0.0), positions on either side of x=0.0 could work, as long as they are close enough to the target.
+           
+           I should prioritize positions that are close to the target, as this generally offers better views and less chance of occlusion from distant objects. I'll consider points in different quadrants around the target to increase diversity. Due to the central wall, I'll definitely want to place positions on both sides of x=0.0, as well as positions that might be "through" the wall if the target is exactly on the wall and the range allows.
+           
+           Positions:
+           (1.5 0.0)
+           (-1.5 0.0)
+           (0.0 1.5)
+
+User:      The following failures were found from the previous request. These were positions that either collided with fixed obstacles or did not have line-of-sight to the target point. You may use these as negative examples for future requests:
+           
+           ```
+           Target point: (0.4494815766811371, 2.1019837856292725, 0.20100000500679016), Proposed position: (1.5, 0.0) -- no line of sight to target
+           Target point: (0.4494815766811371, 2.1019837856292725, 0.20100000500679016), Proposed position: (-1.5, 0.0) --  collides with:
+           
+           ```
+           0: ((-1.7295576882939514, 0.016344477476579335), (-1.6252704309840027, 0.12063173478652797))
+           ```
+           Target point: (0.4494815766811371, 2.1019837856292725, 0.20100000500679016), Proposed position: (0.0, 1.5) --  collides with:
+           
+           ```
+           0: ((-0.05, -2.5), (0.05, 2.5))
+           ```
+           ```
+           
+           The robot can only be placed within the following limits for (x, y, theta):
+           x: [-2.5, 2.5], y: [-2.5, 2.5], theta: [-inf, inf]
+           
+           New request:
+           
+           Target point: {target_point}. Please provide a valid placement for the robot base (x y) within the max distance 2 from the target point. 
+
+Model:     The target point has changed to (0.4494815766811371, 2.1019837856292725). This point is in the top-right quadrant, close to the top boundary.
+           
+           Let's re-evaluate the previous failures:
+           - (1.5, 0.0) had no line of sight to the target. This makes sense as there are several obstacles between (1.5, 0.0) and the new target (0.449, 2.101), including the central wall (AABB 5) and other smaller obstacles.
+           - (-1.5, 0.0) collided with AABB 14 ((-1.729, 0.016), (-1.625, 0.120)). This is a small obstacle.
+           - (0.0, 1.5) collided with AABB 5 ((-0.05, -2.5), (0.05, 2.5)). This is the central vertical wall. The target is on the right side of this wall, so placing the robot on the left side of the wall and trying to view through it won't work.
+           
+           The target point is (0.449, 2.101). The max range is 2. The area to search is a circle of radius 2 centered at the target. This means the x-range is approximately [0.449 - 2, 0.449 + 2] = [-1.551, 2.449] and the y-range is approximately [2.101 - 2, 2.101 + 2] = [0.101, 4.101]. Considering the overall scene limits of y: [-2.5, 2.5], the actual y-range is [0.101, 2.5].
+           
+           Obstacles to consider around the target:
+           - AABB 7: ((1.75, 1.75), (2.25, 2.25)) - top right, far from target
+           - AABB 9: ((0.25, 1.75), (0.75, 2.25)) - This is very close to the target! The target is at x=0.449, y=2.101. AABB 9 spans x from 0.25 to 0.75 and y from 1.75 to 2.25. The target is *inside* this obstacle. This is a critical observation. If the target is inside a fixed obstacle, the problem might be ill-posed or require the robot to be very close to the obstacle. However, based on the problem statement, the robot should view the target. Let's assume the target can be seen *from* the obstacle, or the target is just on its edge.
+           
+           Let's re-check the target point (0.4494815766811371, 2.1019837856292725) against AABB 9.
+           Target x (0.449) is between 0.25 and 0.75.
+           Target y (2.101) is between 1.75 and 2.25.
+           So, the target is indeed *inside* AABB 9. This means any position within this obstacle would be colliding with it.
+           
+           If the target is inside an obstacle, the robot must be *outside* the obstacle and still have line-of-sight. This is tricky. I need to place the robot very close to the boundaries of AABB 9.
+           
+           Let's try positions just outside the boundaries of AABB 9, within the max_range of 2 from the target (0.449, 2.101).
+           
+           Candidate areas:
+           1.  To the right of AABB 9: x > 0.75, around y=2.101.
+           2.  To the left of AABB 9: x < 0.25, around y=2.101.
+           3.  Above AABB 9: y > 2.25, around x=0.449.
+           4.  Below AABB 9: y < 1.75, around x=0.449.
+           
+           Given the overall bounding box and the presence of other obstacles in the top-right, let's explore these options.
+           The target is at (0.449, 2.101).
+           
+           1.  To the right:
+               -   Try x = 0.8, y = 2.1. This is just to the right of AABB 9. Distance from target: sqrt((0.8 - 0.449)^2 + (2.1 - 2.101)^2) = sqrt(0.351^2 + (-0.001)^2) approx 0.351. This is well within max_range.
+           
+           2.  To the left:
+               -   Try x = 0.2, y = 2.1. This is just to the left of AABB 9. Distance from target: sqrt((0.2 - 0.449)^2 + (2.1 - 2.101)^2) = sqrt((-0.249)^2 + (-0.001)^2) approx 0.249. This is also well within max_range.
+           
+           3.  Above:
+               -   Try x = 0.449, y = 2.3. This is just above AABB 9. Distance from target: sqrt((0.449 - 0.449)^2 + (2.3 - 2.101)^2) = sqrt(0^2 + 0.199^2) = 0.199. Well within max_range.
+           
+           4.  Below:
+               -   Try x = 0.449, y = 1.7. This is just below AABB 9. Distance from target: sqrt((0.449 - 0.449)^2 + (1.7 - 2.101)^2) = sqrt(0^2 + (-0.401)^2) = 0.401. Well within max_range.
+           
+           These four positions are very close to the target and should have line-of-sight to the target, assuming the target itself is not occluded by being *inside* AABB 9. If the target is considered to be "on" the obstacle, these adjacent points should work.
+           
+           Let's also look at the other small obstacles in the top-right/top-middle area to ensure these proposed positions are not colliding with them:
+           - AABB 20: ((0.402, 2.054), (0.496, 2.149)). This is *also* very close to the target! The target (0.449, 2.101) is within this box as well. So AABB 9 and AABB 20 both contain the target. This strongly suggests I need to place the robot very close to the boundaries of these combined obstacles.
+           
+           The union of AABB 9 and AABB 20:
+           AABB 9: x in [0.25, 0.75], y in [1.75, 2.25]
+           AABB 20: x in [0.402, 0.496], y in [2.054, 2.149]
+           
+           Since AABB 20 is completely contained within AABB 9, the effective obstacle boundary around the target is still defined by AABB 9.
+           
+           Let's re-propose the positions, ensuring they are outside AABB 9.
+           
+           Positions:
+           (0.8 2.1)
+           (0.2 2.1)
+           (0.449 2.3)
+
