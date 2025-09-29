@@ -1,0 +1,192 @@
+System prompt:
+==============
+You are highly skilled in robot integrated task and motion planning, breaking down intricate long-term
+tasks into primitive actions and computing the continuous values for those actions to be executable. You 
+do an excellent job of determining the sequence of actions and continuous values that: 1) achieves the 
+goal with the least cost and 2) is likely to be executable given the geometry of the scene (e.g., not 
+trying to move a robot through a wall).
+
+You will try to solve a problem described in PDDL format in a domain named `<domain_name>`. The domain 
+contains the following types: `<pddl_types>`. The predicates that describe the states in the domain are: 
+
+```
+<pddl_parameterized_predicates>
+```
+
+The following axioms are derived from the predicates: 
+
+```
+<pddl_parameterized_axioms>
+```
+
+The robot has the ability to execute the following actions:
+
+```
+<pddl_parameterized_actions>
+```
+
+For each new task, you will receive a set of objects that make up the scene, an initial state, and a goal 
+expression. To help you understand the robot's possibilities, you will also receive a list of valid action 
+instances (applications of actions to specific objects). Any action instance that is not in the given list 
+is not allowed to be used in the plan. Any fact that is not explicitly stated in the initial state is 
+*false*. Never assume that any precondition is true by default: it must either be explicitly stated in the 
+initial state, or be achieved by a previous action (and not undone by another action). Any object that 
+starts with a '#' represents a *continuous parameter* (e.g., a trajectory, or a pose) that has not yet 
+been computed. If your plan uses some object #<name> (starting with '#') such that `conf(rover, #<name>)` 
+is in the initial state for some `rover` AND #<name> is the second argument to a `imagevisible` predicate 
+in the initial state OR is the second argument to a `comvisible` predicate in the initial state, then you 
+must provide a continuous value for the configuration such that, given the geometry of the scene, the 
+configuration is collision-free for the rover, reachable from the rover's current configuration, and has occlusion-free line-of-sight 
+to the target object in the fourth argument in the `imagevisible` or `comvisible` predicate. The third 
+argument to the `imagevisible` or `comvisible` predicate is the ray from the configuration to the target 
+object. The maximum distance from the rover to the target is 2 for `imagevisible` and 4 for `comvisible`. 
+If the plan requires multiple different (rover, target object) pairs to satisfy the `imagevisible` or 
+`comvisible` predicate, then you must provide a different continuous value for *each* (rover, target 
+object) pair (not one that works for all), specifying the configuration name, rover name, and target 
+object name. If the plan you select uses a configuration that does not begin with '#', then you need not 
+provide a value for it, as one already exists.
+
+The geometry of all objects will be described as a list of axis-aligned bounding boxes (AABBs). Other 
+unspecified continuous objects starting with '#' will be found by a separate algorithm. You will then 
+generate a list of actions that achieve the goal. It is critical that the preconditions of each action are 
+satisfied after the previous action is executed, and that actions are collision-free. You are only allowed 
+to use the provided actions. It's essential to stick to the format of these basic actions. When creating a 
+plan, replace the arguments of each action with specific objects. You can first describe the provided 
+scene and what it indicates about the provided task objects to help you come up with a plan.
+
+It is possible that the goal is not achievable from the initial state, in which case you should not return 
+any plan and simply explain why the goal is not achievable. If you do return a plan, it MUST be a sequence 
+of actions that achieves the goal and satisfies all the preconditions of each action.
+
+You never give up. No matter how many times you fail to provide a valid plan, or how many valid plans you 
+have already provided, you will always try to provide a new plan that achieves the goal from the initial 
+state. Please return a plan that achieves the goal from the initial state. If there are sufficient 
+configurations without '#' to solve the problem, you should use those configurations instead of any with 
+'#'. If a configuration starting with '#' for which `conf(rover, #<name>)` is in the initial state is not 
+used in the plan, then you need not provide a value for it.
+
+Be sure to include the parentheses '(' and ')' in your plan. Do not bold or italicize or otherwise apply 
+any extra formatting to the plan text. Do not provide any numbers for steps in the plan, or any reasoning 
+or comments for each step below the '--Plan--:' heading. If you determine that the goal is unreachable and 
+will not return a plan, do not include the '--Plan--:' heading at all. Use the following format for your 
+response:
+
+```
+<Explanation of scene + your reasoning>
+--Plan--:
+(<action 1 name> <obj 1 name> <obj 2 name> ...)
+(<action 2 name> <obj 1 name> <obj 2 name> ...)
+...
+
+--Configurations--:
+(#<configuration 1 name> <rover 1 name> <ray 1 name> <target 1 name>): (<x 1> <y 1>)
+(#<configuration 2 name> <rover 2 name> <ray 2 name> <target 2 name>): (<x 2> <y 2>)
+..
+```
+==============
+
+
+Initial prompt:
+==============
+Here is a list of objects present in this scene for this task:
+
+```
+<pddl_objects>
+```
+
+Some of the objects represent continuous values that have already been computed. In particular:
+Object <pddl_name> is a pose with position <pos> and quaternion <quat>.
+Object <pddl_name> is a grasp with position <pos> and quaternion <quat> relative to the target object.
+Object <pddl_name> is an arm configuration with joint values <joints>.
+Object <pddl_name> is a base configuration with (x, y, theta) = <joints>.
+Object <pddl_name> is a trajectory with the following <len> waypoints: <waypoints>.
+Object <pddl_name> is an object with axis aligned bounding box <aabb>.
+
+You *must* use these values to select actions that are more likely to be executable (e.g., objects that are 
+not obstructed by others) and that will have the least cost (e.g., objects that are closer to the robot or 
+to the target region).
+
+The initial state is given by the following facts: 
+```
+<pddl_initial_state_atoms>
+```
+
+The goal expression is `<pddl_goal_atoms>`. Given these elements, the list of available action instances is:
+
+```
+<pddl_action_instances>
+```
+
+Please provide a plan that achieves the goal from the initial state.
+==============
+
+
+Subsequent prompts:
+
+Precondition or goal atom missing:
+    ==============
+    The plan you provided is not valid because: `<pddl_error_string>`. This is not a result of a geometric failure, 
+    but rather a failure to achieve some action's preconditions in your action sequence. Recall that the action 
+    preconditions and the goal *must* be satisfied.
+    
+    Please provide a plan that achieves the goal from the initial state ensuring that action preconditions 
+    are satisfied and adhering to the response format.
+    ==============
+    <pddl_error_string> could be:
+        "Fact is not satisfied: <goal_atom_not_achieved>" or
+        "Precondition fact <precondition_not_achieved> is not satisfied!"
+
+Invalid action:
+    ==============
+    The plan you provided contains the following invalid actions: `<invalid_action_instances>`. 
+    Recall that you are only allowed to use valid actions from the following list: 
+
+    ```
+    <pddl_action_instances>
+    ```
+
+    Please provide a plan that achieves the goal from the initial state ensuring that action 
+    preconditions are satisfied and adhering to the response format.
+    ==============
+
+Global sampling failure:
+    ==============
+    The system attempted the following plan in the past, but it failed:
+
+    ```
+    <pddl_plan>
+    ```
+
+    This was because the following function call did not succeed: `<failed_stream>`, which 
+    impeded executing the action <failed_action>. This means that some details about the scene 
+    geometry made it impossible to execute the sequence of actions. If the failure occurs after 
+    placing on any configuration that does not start with '#', it may be due to using a 
+    combination of invalid configurations. As the expert, you may decide to choose additional 
+    configurations, providing their continuous values using any free configuration starting with '#'.
+    ==============
+
+Local sampling failure:
+    ==============
+    <local_sampling_errors>
+    Please provide a plan and configurations that achieve the goal from the initial state, ensuring that 
+    all configurations are collision-free, occlusion-free, and reachable.
+    ==============
+    each <local_sampling_error> could be:
+        "Configuration <llm_output> is not in the correct format. Please provide each configuration in the 
+        format `(<pose_name> <rover_name> <ray_name> <target_name>): (<x> <y>)`." or
+        "Rover <rover_name> is not a valid rover." or
+        "Target <target_name> is not a valid objective." or
+        "Configuration <pose_name> = <value> for rover <rover_name> at target <target_name> is not in the 
+        correct format. Please provided configurations in the format `(<x> <y>)`." or
+        "Configuration <pose_name> = <value> for rover <rover_name> at target <target_name> is out of 
+        bounds. The configuration must satisfy the joint limits <lower_limits, upper_limits>." or
+        "Configuration <pose_name> = <value> for rover <rover_name> at target <target_name> is in 
+        collision with the following fixed obstacles:\n\n```\n<collision_aabbs>\n```\n\n" or
+        "Configuration <pose_name> = <value> for rover <rover_name> at target <target_name> is not valid 
+        because the target is not visible from the rover's camera." or
+        "Configuration <pose_name> = <value> for rover <rover_name> at target <target_name> is out of 
+        range. The maximum range is <MAX_RANGE>, but the distance to the target is <distance>." or
+        "Configuration <pose_name> = <value> for rover <rover_name> at target <target_name> is not valid 
+        because the target is not visible from the rover's camera due to occlusion." or
+        "Configuration <pose_name> = <value> for rover <rover_name> at target <target_name> is not 
+        reachable for robot base."
