@@ -15,7 +15,7 @@ for seed in `seq 0 9`; do
                 
                 echo "Running $algorithm$llm_args$domain_command_args with seed $seed"
                 export GEMINI_API_KEY=<your_key>
-                sudo -E nice -10 python -m $domain_command_args -t 300 -a $algorithm $llm_args -seed $seed --results_dir results/"$algorithm$llm_args$domain_command_args"_$seed > out_"$algorithm$llm_args$domain_command_args"_$seed.log 2>&1 &
+                python -m $domain_command_args -t 300 -a $algorithm $llm_args -seed $seed --results_dir results/"$algorithm$llm_args$domain_command_args"_$seed > out_"$algorithm$llm_args$domain_command_args"_$seed.log 2>&1 &
 
                 # If we already have MAX_JOBS running, wait for one to finish
                 while [ "$(jobs -rp | wc -l)" -ge "$MAX_JOBS" ]; do
